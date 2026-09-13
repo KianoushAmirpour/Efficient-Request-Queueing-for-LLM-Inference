@@ -1,0 +1,11 @@
+database:
+  host: localhost
+  port: 5432
+  db: postgres_db
+  sslmode: disable
+connection_pool:
+  max_conns: 20
+  min_conns: 5
+  max_idle_time: 15m
+  max_conn_lifetime: 30m
+  conn_timeout: 5s

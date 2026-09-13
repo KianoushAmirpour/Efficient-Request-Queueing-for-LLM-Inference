@@ -1,0 +1,23 @@
+rate_limit:
+  free:
+    capacity: 2000
+    refill_rate: 10
+    ttl: 3600s
+  premium:
+    capacity: 2000
+    refill_rate: 50
+    ttl: 1800s
+
+user_tiers:
+  free:
+    max_input_tokens: 1000
+    max_output_tokens: 100
+    models:
+      - name: deepseek/deepseek-v3.2
+        context_length: 640000
+  premium:
+    max_input_tokens: 2000
+    max_output_tokens: 512
+    models:
+      - name: qwen3.7
+        context_length: 128000

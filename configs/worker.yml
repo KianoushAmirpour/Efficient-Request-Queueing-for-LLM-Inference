@@ -1,0 +1,8 @@
+worker:
+  num_workers: 5
+  poll_interval: 100ms
+  lease_timeout: 60s
+  temperature: 0.7
+  default_max_attempts: 3
+  default_max_delay: 5s
+  default_base_delay: 1s

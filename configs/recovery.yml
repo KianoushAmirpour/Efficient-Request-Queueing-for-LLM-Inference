@@ -1,0 +1,5 @@
+config:
+  sweep_interval: 60s 
+  batch_size: 100
+  orphan_grace: 5m
+  queue_capacity: 10

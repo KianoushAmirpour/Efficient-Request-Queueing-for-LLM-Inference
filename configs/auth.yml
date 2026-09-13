@@ -1,0 +1,16 @@
+github:
+  callback_url: http://localhost:8080/api/auth/github/callback
+jwt:
+  issuer: auth-api
+  audience: request-api
+  subject: access-token
+  access_expiry: 3600s
+http_client:
+  retry_count: 3
+  retry_base_delay: 100ms
+  dial_timeout: 5s
+  tls_handshake_timeout: 5s
+  response_header_timeout: 15s
+  max_idle_connections: 100
+  max_conns_per_host: 100
+  idle_connection_timeout: 90s

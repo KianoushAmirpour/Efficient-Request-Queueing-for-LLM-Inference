@@ -1,0 +1,9 @@
+user_tiers:
+  free:
+    max_attempt: 2
+    base_delay: 500ms
+    max_delay: 5s
+  premium:
+    max_attempt: 3
+    base_delay: 200ms
+    max_delay: 2s

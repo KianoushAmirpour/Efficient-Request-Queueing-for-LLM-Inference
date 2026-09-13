@@ -1,0 +1,4 @@
+inference:
+  coalescing_ttl: 10m
+  idempotency_ttl: 60m
+  completed_idempotency_ttl: 24h
