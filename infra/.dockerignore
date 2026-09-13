@@ -1,0 +1,39 @@
+# Version control
+.git
+.github
+.gitignore
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Go build artifacts and cache
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+pkg/
+cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Docker files (avoid copying Docker artifacts into the image)
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Test and coverage
+coverage.txt
+*.cover
+
+# Documentation (optional, exclude from build context)
+*.md
+LICENSE
