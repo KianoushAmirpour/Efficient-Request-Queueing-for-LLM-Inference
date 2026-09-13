@@ -1,0 +1,53 @@
+version: "2"
+
+run:
+  timeout: 20m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - revive
+    - gocritic
+    - nilerr
+    - errorlint
+    - bodyclose
+    - noctx
+    - copyloopvar
+    - gosec
+    - prealloc
+    - misspell
+    - gocyclo
+    - godot
+
+  settings:
+    revive:
+      confidence: 0.8
+    gocyclo:
+      min-complexity: 35
+
+  exclusions:
+    paths:
+      - vendor
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - gocyclo
+          - errcheck
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(efficient-request-queueing-for-llm-inference)
