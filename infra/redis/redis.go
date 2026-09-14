@@ -38,7 +38,6 @@ func ConnectToRedis(ctx context.Context, cfg RedisConfig) (*redis.Client, error)
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:            addr,
-		Password:        cfg.Password,
 		DB:              cfg.Database.DB,
 		PoolSize:        cfg.ConnectionPool.MaxActiveConns,
 		MinIdleConns:    cfg.ConnectionPool.MinIdleConns,
@@ -50,6 +49,7 @@ func ConnectToRedis(ctx context.Context, cfg RedisConfig) (*redis.Client, error)
 		PoolTimeout:     cfg.ConnectionPool.PoolTimeout,
 		DialTimeout:     cfg.Database.DialTimeout,
 		PoolFIFO:        true,
+		TLSConfig:       nil,
 	})
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
