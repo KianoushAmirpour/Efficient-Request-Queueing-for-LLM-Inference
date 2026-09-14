@@ -27,6 +27,8 @@ type ServerSettings struct {
 	ReadTimeout       time.Duration `yaml:"read_timeout"`
 	WriteTimeout      time.Duration `yaml:"write_timeout"`
 	IdleTimeout       time.Duration `yaml:"idle_timeout"`
+	ShutdownGrace     time.Duration `yaml:"shutdown_grace"`
+	HTTPDrainTimeout  time.Duration `yaml:"http_drain_timeout"`
 }
 
 type ServerConfig struct {
@@ -86,7 +88,6 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 	if err != nil {
 		return AppConfig{}, err
 	}
-	rdsCfg.Password = os.Getenv("REDIS_PASSWORD")
 
 	admCfg, err := config.LoadInto[admissionCfg.AdmissionConfig](loader, "admission.yml")
 	if err != nil {

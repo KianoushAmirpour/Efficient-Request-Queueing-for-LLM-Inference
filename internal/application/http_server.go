@@ -42,14 +42,7 @@ func (h *httpServer) serve() <-chan error {
 }
 
 func (h *httpServer) shutdown(ctx context.Context) error {
-	go func() {
-		<-ctx.Done()
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			h.logger.WarnContext(ctx, "shutdown timeout exceeded")
-		}
-	}()
-
-	h.logger.InfoContext(ctx, "shutdown")
+	h.logger.InfoContext(ctx, "server shutdown initiated")
 	if err := h.srv.Shutdown(ctx); err != nil {
 		h.logger.ErrorContext(
 			ctx,

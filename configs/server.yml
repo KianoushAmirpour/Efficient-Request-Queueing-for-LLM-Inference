@@ -5,3 +5,5 @@ server:
   write_timeout: 60s
   idle_timeout: 120s
   read_header_timeout: 5s
+  shutdown_grace: 60s
+  http_drain_timeout: 15s
