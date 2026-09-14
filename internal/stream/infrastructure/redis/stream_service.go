@@ -107,11 +107,6 @@ func (s *streamService) appendMessage(
 	return nil
 }
 
-// Subscribe subscribes to the Redis Stream for the given job ID.
-//
-// It starts reading from the beginning of the stream. This is intentional:
-// if the worker produced chunks before the SSE handler connected,
-// those chunks are still available.
 func (s *streamService) Subscribe(
 	ctx context.Context,
 	jobID string,
