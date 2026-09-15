@@ -37,7 +37,7 @@ type Jobs interface {
 type StatusWriter interface {
 	MarkCompleted(ctx context.Context, jobID string, retryCount int) error
 	MarkFailed(ctx context.Context, jobID string, retryCount int) error
-	UpdateCreated(ctx context.Context, jobID string, retryCount int) error
+	UpdateCreated(ctx context.Context, jobID string, retryCount int) (bool, error)
 }
 
 type RetryPolicy struct{ MaxAttempts int }

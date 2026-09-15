@@ -196,3 +196,7 @@ func (u *JobUsecase) PendingOrphans(ctx context.Context, before time.Time, limit
 func (u *JobUsecase) UpdateStatus(ctx context.Context, jobID, status string, retryCount int) error {
 	return u.jobRepo.UpdateStatus(ctx, jobID, jobDomain.Status(status), retryCount)
 }
+
+func (u *JobUsecase) UpdateStatusIfStatus(ctx context.Context, jobID string, retryCount int, status, expectedStatus string) (bool, error) {
+	return u.jobRepo.UpdateStatusIfStatus(ctx, jobID, retryCount, jobDomain.Status(status), jobDomain.Status(expectedStatus))
+}

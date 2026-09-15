@@ -139,3 +139,23 @@ func (r *JobRepository) UpdateStatus(ctx context.Context, jobID string, status d
 
 	return nil
 }
+
+func (r *JobRepository) UpdateStatusIfStatus(
+	ctx context.Context,
+	jobID string,
+	retryCount int,
+	status,
+	expectedStatus domain.Status) (bool, error) {
+	db := postgres.ExtractDB(ctx, r.Db)
+	query := `
+		UPDATE jobs
+		SET status = $2::job_status, retry_counts = $3, updated_at = NOW()
+		WHERE job_id = $1 AND status = $4::job_status
+	`
+	tag, err := db.Exec(ctx, query, jobID, domain.Status(status), retryCount, domain.Status(expectedStatus))
+	if err != nil {
+		return false, fmt.Errorf("update job status: %w", err)
+	}
+
+	return tag.RowsAffected() == 1, nil
+}

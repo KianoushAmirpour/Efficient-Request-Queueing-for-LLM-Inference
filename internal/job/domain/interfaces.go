@@ -16,6 +16,8 @@ type JobRepository interface {
 	PendingOrphans(ctx context.Context, before time.Time, limit int) ([]*Job, error)
 
 	UpdateStatus(ctx context.Context, jobID string, status Status, retryCount int) error
+
+	UpdateStatusIfStatus(ctx context.Context, jobID string, retryCount int, status, expectedStatus Status) (bool, error)
 }
 
 type UserPolicyReader interface {

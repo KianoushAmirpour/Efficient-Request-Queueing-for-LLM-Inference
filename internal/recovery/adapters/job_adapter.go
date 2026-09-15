@@ -39,8 +39,12 @@ func (a JobAdapter) MarkFailed(ctx context.Context, jobID string, retryCount int
 	return a.service.MarkFailed(ctx, jobID, retryCount)
 }
 
-func (a JobAdapter) UpdateCreated(ctx context.Context, jobID string, retryCount int) error {
-	return a.service.UpdateStatus(ctx, jobID, domain.StatusCreated, retryCount)
+func (a JobAdapter) UpdateCreated(ctx context.Context, jobID string, retryCount int) (bool, error) {
+	updated, err := a.service.UpdateStatusIfStatus(ctx, jobID, retryCount, domain.StatusCreated, domain.StatusCreated)
+	if err != nil {
+		return false, err
+	}
+	return updated, nil
 }
 
 func (a JobAdapter) MarkCompleted(ctx context.Context, jobID string, retryCount int) error {

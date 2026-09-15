@@ -37,6 +37,7 @@ type JobService interface {
 	MarkCompleted(ctx context.Context, jobID string, retryCount int) error
 	MarkFailed(ctx context.Context, jobID string, retryCount int) error
 	UpdateStatus(ctx context.Context, jobID, status string, retryCount int) error
+	UpdateStatusIfStatus(ctx context.Context, jobID string, retryCount int, status, expectedStatus string) (bool, error)
 	GetRetryPolicy(ctx context.Context, userID string) (RetryPolicy, error)
 }
 
