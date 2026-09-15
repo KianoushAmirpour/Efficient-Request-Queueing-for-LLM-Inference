@@ -77,7 +77,7 @@ local remaining = redis.call("LLEN", "queue:user:" .. user)
 if remaining > 0 then
     -- More jobs: update score to move user to end of round-robin
     local t = redis.call("TIME")
-    local score = tonumber(t[1]) * 1000000 + tonumber(t[2])
+    local score = tonumber(t[1]) * 1000 + tonumber(t[2])
     redis.call("ZADD", KEYS[1], score, user)
 else
     -- No more jobs: remove user from active set entirely
@@ -119,7 +119,7 @@ redis.call("LPUSH", KEYS[2], ARGV[1])
 if queueLength == 0 then
 
     local t = redis.call("TIME")
-    local score = tonumber(t[1]) * 1000000 + tonumber(t[2])
+    local score = tonumber(t[1]) * 1000 + tonumber(t[2])
 
     redis.call("ZADD", KEYS[3], "NX", tostring(score), ARGV[4])
 
