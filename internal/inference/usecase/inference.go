@@ -126,7 +126,7 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 			if markErr := i.jobService.MarkFailed(ctx, job.JobID, job.CurrentAttempt); markErr != nil {
 				i.logger.WarnContext(ctx, "failed to mark queue-full job failed", "job.id", job.JobID, "error", markErr)
 			}
-			_ = i.idempotencyService.TransitionStatus(ctx, userID, job.JobID, "failed")
+			_ = i.idempotencyService.TransitionStatus(ctx, job.JobID, "failed")
 		}
 		return "", sharederr.EnsureAppError(err, inferencePublic.ErrCodeEnqueueFailed, ErrTypeInference)
 	}

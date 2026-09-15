@@ -240,7 +240,7 @@ func (r *RedisStore) Delete(ctx context.Context, userID, idempotencyHeader strin
 	return nil
 }
 
-func (r *RedisStore) TransitionStatus(ctx context.Context, userID, jobID, status string) error {
+func (r *RedisStore) TransitionStatus(ctx context.Context, jobID, status string) error {
 
 	jobIDtoIdempotencyKey := fmt.Sprintf("jobID:%s:IdempotencyKey", jobID)
 
@@ -257,6 +257,49 @@ func (r *RedisStore) TransitionStatus(ctx context.Context, userID, jobID, status
 		return fmt.Errorf("cannot transition idempotency status for job=%s: %s", jobID, result)
 	}
 	return nil
+}
+
+func (r *RedisStore) TransitionStatusIfInFlight(
+	ctx context.Context,
+	jobID, status string,
+) (bool, error) {
+	jobIDtoIdempotencyKey := fmt.Sprintf(
+		"jobID:%s:IdempotencyKey",
+		jobID,
+	)
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	ttlSeconds := int(r.config.CompletedIdempotencyTTL.Seconds())
+
+	result, err := idempotencyTransitionStatusScript.Run(
+		ctx,
+		r.redisClient,
+		[]string{jobIDtoIdempotencyKey},
+		status,
+		now,
+		ttlSeconds,
+	).Result()
+	if err != nil {
+		return false, fmt.Errorf(
+			"transition idempotency status if in-flight: %w",
+			err,
+		)
+	}
+
+	switch result {
+	case "ok":
+		return true, nil
+
+	case "missing", "invalid":
+		return false, nil
+
+	default:
+		return false, fmt.Errorf(
+			"unexpected transition result for job=%s: %s",
+			jobID,
+			result,
+		)
+	}
 }
 
 func toString(v interface{}) string {

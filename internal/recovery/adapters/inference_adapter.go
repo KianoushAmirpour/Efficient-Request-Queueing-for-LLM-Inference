@@ -17,6 +17,6 @@ func NewIdempotencyStatusAdapter(service inferencePublic.IdempotencyService) Ide
 	return IdempotencyStatusAdapter{service: service}
 }
 
-func (a IdempotencyStatusAdapter) TransitionStatus(ctx context.Context, userID, jobID, status string) error {
-	return a.service.TransitionStatus(ctx, userID, jobID, status)
+func (a IdempotencyStatusAdapter) TransitionStatus(ctx context.Context, jobID, status string) (bool, error) {
+	return a.service.TransitionStatusIfInFlight(ctx, jobID, status)
 }

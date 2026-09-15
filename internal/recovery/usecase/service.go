@@ -76,12 +76,12 @@ func (s *RecoveryService) ReconcileCompleted(ctx context.Context) error {
 				continue
 			}
 		}
-		if err := s.idempotency.TransitionStatus(ctx, job.UserID, id, "completed"); err != nil {
+		if _, err := s.idempotency.TransitionStatus(ctx, id, "completed"); err != nil {
 			s.logger.WarnContext(ctx, "failed to update idempotency status in recovery phase", "job.id", id, "error", err)
 			continue
 		}
 		if err := s.events.Close(ctx, id); err != nil {
-			continue
+			s.logger.WarnContext(ctx, "failed to close the event in recovery phase", "job.id", id, "error", err)
 		}
 		if err := s.queue.RemoveCompletedJob(ctx, id); err != nil {
 			return sharederr.EnsureAppError(err, recoveryErr.ErrCodeReconcileFailed, ErrTypeRecovery)
@@ -157,7 +157,7 @@ func (s *RecoveryService) recoverOne(ctx context.Context, id string, cutoff int6
 		if err != nil || !claimed {
 			return sharederr.EnsureAppError(err, recoveryErr.ErrCodeQueueRecoveryFailed, ErrTypeRecovery)
 		}
-		if err = s.idempotency.TransitionStatus(ctx, job.UserID, id, "failed"); err != nil {
+		if _, err = s.idempotency.TransitionStatus(ctx, id, "failed"); err != nil {
 			return sharederr.NewAppError(recoveryErr.ErrCodeIdempotencyUpdateFailed, ErrTypeRecovery, err)
 		}
 		return sharederr.EnsureAppError(s.events.PublishEvent(ctx, id, "failed", "recovery retry limit exceeded"), recoveryErr.ErrCodeEventPublishFailed, ErrTypeRecovery)

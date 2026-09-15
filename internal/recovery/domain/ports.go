@@ -47,7 +47,7 @@ type Policies interface {
 }
 
 type IdempotencyFailure interface {
-	TransitionStatus(ctx context.Context, userID, jobID, status string) error
+	TransitionStatus(ctx context.Context, jobID, status string) (bool, error)
 }
 
 type Events interface {
