@@ -13,4 +13,5 @@ const (
 	ErrCodeEnqueueFailed          string = "INFERENCE_ENQUEUE_FAILED"
 	ErrCodeReleaseCoalescing      string = "RELEASE_COALESCING_FAILED"
 	ErrCodeReleaseIdempotencyKey  string = "RELEASE_IDEMPOTENCY_FAILED"
+	ErrCodeIdempotencyJobFailed   string = "IDEMPOTENCY_JOB_FAILED"
 )

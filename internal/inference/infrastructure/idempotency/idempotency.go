@@ -54,7 +54,7 @@ if status == "in_flight" then
 elseif status == "completed" then
   return {"REPLAY", status, created_at, job_id}
 elseif status == "failed" then
-  return {"UNKNOWN_STATE", status or "missing", created_at, job_id}
+  return {"FAILED", status or "missing", created_at, job_id}
 else
   return {"UNKNOWN_STATE", status or "missing", created_at, job_id}
 end
@@ -202,7 +202,7 @@ func (r *RedisStore) ClaimOrGet(
 			ExpiresAt: expiresAt,
 			Err:       fmt.Errorf("unknown state for idempotency key"),
 		}, nil
-	case "failed":
+	case "FAILED":
 		return &domain.IdempotencyResult{
 			Action:    domain.ActionFailed,
 			Status:    statusStr,

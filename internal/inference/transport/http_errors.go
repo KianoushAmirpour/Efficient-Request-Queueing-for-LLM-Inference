@@ -31,6 +31,8 @@ const (
 	MsgCoalescingRejected = "A request with identical content is currently being processed. Please retry shortly."
 
 	MsgIdempotencyKeyRequired = "The Idempotency-Key header is required for this endpoint. Include a unique key to safely retry requests without duplication."
+
+	MsgIdempotencyFailed = "A previous request with this Idempotency-Key failed. Submit a new request with a new key."
 )
 
 var InferenceCodeRegistry = sharederr.CodeRegistry{
@@ -43,6 +45,7 @@ var InferenceCodeRegistry = sharederr.CodeRegistry{
 	inferencePublic.ErrCodeIdempotencyKeyMissing:  sharederr.ErrorMeta{StatusCode: http.StatusBadRequest, Message: MsgIdempotencyKeyRequired},
 	inferencePublic.ErrCodeIdempotencyUnknown:     sharederr.ErrorMeta{StatusCode: http.StatusInternalServerError, Message: sharederr.MsgServerError},
 	inferencePublic.ErrCodeAdmissionFailed:        sharederr.ErrorMeta{StatusCode: http.StatusInternalServerError, Message: sharederr.MsgServerError},
+	inferencePublic.ErrCodeIdempotencyJobFailed:   sharederr.ErrorMeta{StatusCode: http.StatusConflict, Message: MsgIdempotencyFailed},
 
 	admissionPublicAPI.ErrCodeInputToken:        sharederr.ErrorMeta{StatusCode: http.StatusRequestEntityTooLarge, Message: MsgInputTokenExceeded},
 	admissionPublicAPI.ErrCodeModelNotAllowed:   sharederr.ErrorMeta{StatusCode: http.StatusForbidden, Message: MsgModelNotAllowed},

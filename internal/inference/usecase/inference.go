@@ -66,10 +66,11 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 	case domain.ActionDuplicateInFlight:
 		return "", sharederr.EnsureAppError(idempotentResult.Err, inferencePublic.ErrCodeIdempotencyConflict, ErrTypeInference)
 	case domain.ActionReplay:
-
 		return idempotentResult.JobID, nil
 	case domain.ActionUnknown:
 		return "", sharederr.EnsureAppError(idempotentResult.Err, inferencePublic.ErrCodeIdempotencyUnknown, ErrTypeInference)
+	case domain.ActionFailed:
+		return "", sharederr.EnsureAppError(idempotentResult.Err, inferencePublic.ErrCodeIdempotencyJobFailed, ErrTypeInference)
 	default:
 		return "", sharederr.EnsureAppError(fmt.Errorf("unrecognized idempotency action: %s", idempotentResult.Action), inferencePublic.ErrCodeCheckIdempotencyFailed, ErrTypeInference)
 	}
