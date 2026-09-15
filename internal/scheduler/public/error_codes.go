@@ -7,4 +7,5 @@ const (
 	ErrCodeDuplicatedJob           = "DUPLICATE_JOB"
 	ErrCodeReleaseProcessingFailed = "RELEASE_PROCESSING_JOB_FAILED"
 	ErrCodeReleaseExtendingFailed  = "RELEASE_EXTENDING_FAILED"
+	ErrCodeJobNotFound             = "JOB_NOT_FOUND"
 )

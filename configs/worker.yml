@@ -6,3 +6,4 @@ worker:
   default_max_attempts: 3
   default_max_delay: 5s
   default_base_delay: 1s
+  max_renewal_failures: 3

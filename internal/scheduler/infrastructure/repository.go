@@ -145,7 +145,7 @@ func (r *RedisSchedulerRepository) ExtendProcessingLease(ctx context.Context, jo
 		return fmt.Errorf("extend processing lease: %w", err)
 	}
 	if updated == 0 {
-		return fmt.Errorf("processing job %q is no longer leased", jobID)
+		return domain.ErrJobNotFound
 	}
 	return nil
 }

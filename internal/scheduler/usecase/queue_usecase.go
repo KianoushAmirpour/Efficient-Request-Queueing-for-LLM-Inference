@@ -55,6 +55,9 @@ func (q QueueService) ReleaseProcessingJob(ctx context.Context, jobID string) er
 
 func (q QueueService) ExtendProcessingLease(ctx context.Context, jobID string) error {
 	if err := q.jobQueue.ExtendProcessingLease(ctx, jobID); err != nil {
+		if errors.Is(err, domain.ErrJobNotFound) {
+			return sharederr.EnsureAppError(err, public.ErrCodeJobNotFound, ErrTypeScheduler)
+		}
 		return sharederr.EnsureAppError(err, public.ErrCodeReleaseExtendingFailed, ErrTypeScheduler)
 	}
 	return nil

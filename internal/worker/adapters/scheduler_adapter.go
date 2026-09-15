@@ -2,8 +2,10 @@ package adapters
 
 import (
 	"context"
+	"fmt"
 
 	schedulerPublicAPI "efficient-request-queueing-for-llm-inference/internal/scheduler/public"
+	sharederr "efficient-request-queueing-for-llm-inference/internal/shared/errors"
 	"efficient-request-queueing-for-llm-inference/internal/worker/domain"
 )
 
@@ -52,7 +54,11 @@ func (a QueueAdapter) Release(ctx context.Context, jobID string) error {
 }
 
 func (a QueueAdapter) ExtendLease(ctx context.Context, jobID string) error {
-	return a.queueService.ExtendProcessingLease(ctx, jobID)
+	err := a.queueService.ExtendProcessingLease(ctx, jobID)
+	if sharederr.IsCode(err, schedulerPublicAPI.ErrCodeJobNotFound) {
+		return fmt.Errorf("%w: %w", domain.ErrLeaseExtendFailed, err)
+	}
+	return err
 }
 
 func (a QueueAdapter) MarkCompleted(ctx context.Context, jobID string) error {

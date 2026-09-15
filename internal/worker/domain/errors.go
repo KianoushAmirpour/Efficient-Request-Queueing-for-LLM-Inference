@@ -14,4 +14,6 @@ var (
 	ErrInferenceFailed = errors.New("inference generation failed")
 
 	ErrTransientInference = errors.New("transient inference failure")
+
+	ErrLeaseExtendFailed = errors.New("processing lease lost")
 )

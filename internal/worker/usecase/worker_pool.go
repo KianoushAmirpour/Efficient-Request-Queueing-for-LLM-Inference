@@ -23,6 +23,7 @@ type workerPool struct {
 	defaultMaxAttempts int
 	defaultMaxDelay    time.Duration
 	defaultBaseDelay   time.Duration
+	maxRenewalFailures int
 
 	jobClaimer         domain.JobClaimer
 	jobRepo            domain.JobRepository
@@ -72,6 +73,9 @@ func NewWorkerPool(
 	}
 	if workerCfg.DefaultMaxDelay < workerCfg.DefaultBaseDelay {
 		return nil, fmt.Errorf("worker pool: DefaultMaxDelay must be >= DefaultBaseDelay")
+	}
+	if workerCfg.MaxRenewalFailures <= 0 {
+		return nil, fmt.Errorf("worker pool: maxRenewalFailures must be > 0, got %d", workerCfg.MaxRenewalFailures)
 	}
 
 	return &workerPool{
@@ -215,28 +219,67 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		return domain.ErrNoJobAvailable
 	}
 
-	jobCtx, jobCancel := context.WithCancel(ctx)
-	defer jobCancel()
+	jobCtx, jobCancel := context.WithCancelCause(ctx)
+	defer jobCancel(nil)
 
 	w.logger.InfoContext(jobCtx, "claimed job", "worker.id", workerID, "job.id", claim.JobID)
 
-	heartbeatCtx, stopHeartbeat := context.WithCancel(jobCtx)
+	heartbeatCtx, stopHeartbeat := context.WithCancelCause(jobCtx)
 	heartbeatDone := make(chan struct{})
 	go func() {
+
 		defer close(heartbeatDone)
+
 		interval := w.leaseTimeout / 3
 		if interval <= 0 {
 			interval = time.Second
 		}
+
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+
+		var consecutiveFailures int
 		for {
 			select {
 			case <-ticker.C:
-				if err := w.queueService.ExtendLease(heartbeatCtx, claim.JobID); err != nil {
-					w.logger.WarnContext(heartbeatCtx, "failed to renew processing lease", "worker.id", workerID, "job.id", claim.JobID, "error", err)
+				err := w.queueService.ExtendLease(heartbeatCtx, claim.JobID)
+				if err == nil {
+					consecutiveFailures = 0
+					continue
+				}
+
+				if errors.Is(err, domain.ErrLeaseExtendFailed) {
+					w.logger.WarnContext(
+						heartbeatCtx,
+						"failed to renew processing lease",
+						"worker.id", workerID,
+						"job.id", claim.JobID,
+						"error", err)
+					jobCancel(fmt.Errorf("%w: lease no longer held", domain.ErrLeaseExtendFailed))
 					return
 				}
+
+				consecutiveFailures++
+				w.logger.WarnContext(jobCtx,
+					"failed to renew processing lease; will retry",
+					"worker.id", workerID, "job.id", claim.JobID,
+					"consecutive_failures", consecutiveFailures,
+					"max_consecutive_failures", w.maxRenewalFailures,
+					"error", err)
+
+				if consecutiveFailures >= w.maxRenewalFailures {
+					w.logger.ErrorContext(jobCtx,
+						"failed to renew processing lease; max consecutive failures reached; aborting job",
+						"worker.id", workerID,
+						"job.id", claim.JobID,
+						"consecutive_failures", consecutiveFailures,
+						"max_consecutive_failures", w.maxRenewalFailures,
+						"error", err)
+
+					jobCancel(fmt.Errorf("%w: max consecutive failures reached", domain.ErrLeaseExtendFailed))
+					return
+				}
+
 			case <-heartbeatCtx.Done():
 				return
 			}
@@ -244,7 +287,7 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 	}()
 
 	stopHeartbeatAndWait := func() {
-		stopHeartbeat()
+		stopHeartbeat(nil)
 		<-heartbeatDone
 	}
 
@@ -295,6 +338,17 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 	)
 
 	if payloadErr != nil {
+
+		if cause := context.Cause(jobCtx); errors.Is(cause, domain.ErrLeaseExtendFailed) {
+			w.logger.ErrorContext(
+				jobCtx,
+				"aborted: processing lease lost; skipping cleanup to avoid clobbering the new owner",
+				"worker.id", workerID,
+				"job.id", claim.JobID)
+
+			stopHeartbeatAndWait()
+			return fmt.Errorf("%w: %w", domain.ErrLeaseExtendFailed, payloadErr)
+		}
 
 		if markErr := w.jobRepo.MarkFailed(jobCtx, claim.JobID, int(retryPolicy.MaxAttempts)); markErr != nil {
 			w.logger.ErrorContext(jobCtx, "failed to mark job as failed", "worker.id", workerID, "job.id", claim.JobID, "error", markErr)
@@ -349,7 +403,6 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 							"worker.id", workerID, "job.id", claim.JobID, "error", pubErr)
 					}
 				}
-
 				attrs = append(attrs, "next_delay", event.NextDelay)
 				w.logger.WarnContext(jobCtx, "inference attempt failed; retrying", attrs...)
 			} else {
@@ -393,6 +446,17 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 	retryCount := inferenceAttempts
 
 	if err != nil {
+
+		if cause := context.Cause(jobCtx); errors.Is(cause, domain.ErrLeaseExtendFailed) {
+			w.logger.ErrorContext(
+				jobCtx,
+				"aborted: processing lease lost; skipping cleanup to avoid clobbering the new owner",
+				"worker.id", workerID,
+				"job.id", claim.JobID)
+
+			stopHeartbeatAndWait()
+			return fmt.Errorf("%w: %w", domain.ErrLeaseExtendFailed, err)
+		}
 
 		if markErr := w.jobRepo.MarkFailed(jobCtx, claim.JobID, retryCount); markErr != nil {
 			w.logger.ErrorContext(

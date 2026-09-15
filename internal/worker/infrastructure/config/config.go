@@ -14,4 +14,5 @@ type WorkerConfig struct {
 	DefaultMaxAttempts int           `yaml:"default_max_attempts"`
 	DefaultMaxDelay    time.Duration `yaml:"default_max_delay"`
 	DefaultBaseDelay   time.Duration `yaml:"default_base_delay"`
+	MaxRenewalFailures int           `yaml:"max_renewal_failures"`
 }
