@@ -128,6 +128,10 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 				i.logger.WarnContext(ctx, "failed to mark queue-full job failed", "job.id", job.JobID, "error", markErr)
 			}
 			_ = i.idempotencyService.TransitionStatus(ctx, job.JobID, "failed")
+			remCoalErr := i.coalescingService.Delete(ctx, userID, hashRequest)
+			if remCoalErr != nil {
+				i.logger.WarnContext(ctx, "failed to delete coalescing key after queue-full rejection", "error", remCoalErr)
+			}
 		}
 		return "", sharederr.EnsureAppError(err, inferencePublic.ErrCodeEnqueueFailed, ErrTypeInference)
 	}
