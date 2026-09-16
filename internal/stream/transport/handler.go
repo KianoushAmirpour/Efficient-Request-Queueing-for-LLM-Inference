@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	sharederr "efficient-request-queueing-for-llm-inference/internal/shared/errors"
 	"efficient-request-queueing-for-llm-inference/internal/stream/domain"
@@ -40,6 +41,15 @@ func (h *StreamHTTPHandler) HandleStream(c *gin.Context) {
 			streamPublic.ErrCodeInvalidStreamData,
 			"STREAM_FAILED",
 			fmt.Errorf("jobID is required"),
+		))
+		return
+	}
+	_, uuidErr := uuid.Parse(jobID)
+	if uuidErr != nil {
+		_ = c.Error(sharederr.NewAppError(
+			streamPublic.ErrCodeInvalidStreamData,
+			"STREAM_FAILED",
+			fmt.Errorf("jobID is not valid"),
 		))
 		return
 	}

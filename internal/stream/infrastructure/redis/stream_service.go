@@ -16,7 +16,7 @@ const (
 	streamPrefix     = "stream:"
 	streamRetention  = 1 * time.Hour
 	streamTTL        = 30 * time.Minute
-	readBlockTimeout = 5 * time.Second
+	readBlockTimeout = 2 * time.Second
 )
 
 type streamService struct {
