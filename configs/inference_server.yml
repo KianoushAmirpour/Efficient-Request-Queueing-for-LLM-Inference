@@ -1,0 +1,11 @@
+inference_server:
+  base_url: https://api.avalai.ir/v1
+  max_retries: 3
+  dial_timeout: 5s
+  tls_handshake_timeout: 5s
+  response_header_timeout: 30s
+  stream_idle_timeout: 60s
+  stream_total_timeout: 10m
+  max_idle_connections: 20
+  max_idle_connections_per_host: 10
+  connection_idle_timeout: 90s
