@@ -125,7 +125,7 @@ func composeModules(
 
 	inferenceEngineModule, err := inferenceserver.NewInferenceEngineModule(
 		inferenceserver.InferenceEngineDeps{},
-		*appCfg.InferenceServerCfg,
+		appCfg.InferenceServerCfg.InferenceServer,
 		logger,
 	)
 	if err != nil {

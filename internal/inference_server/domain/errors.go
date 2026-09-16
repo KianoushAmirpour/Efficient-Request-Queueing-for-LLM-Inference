@@ -13,6 +13,7 @@ var (
 	ErrRateLimitExceeded = errors.New("rate limit exceeded")
 
 	ErrStreamInterrupted = errors.New("stream interrupted")
+	ErrStreamIdleTimeout = errors.New("stream idle timeout")
 
 	ErrUnknown              = errors.New("unknown error")
 	ErrIncompleteGeneration = errors.New("incomplete generation")

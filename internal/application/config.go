@@ -46,7 +46,7 @@ type AppConfig struct {
 	SchedulerCfg       *schedulerCfg.Config
 	InferenceCfg       *inferenceCfg.Config
 	RecoveryCfg        *recoveryCfg.RecoveryConfig
-	InferenceServerCfg *inferenceServerCfg.InferenceClient
+	InferenceServerCfg *inferenceServerCfg.Config
 }
 
 func newLoaderFromEnv() (*config.Loader, error) {
@@ -129,9 +129,11 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 		return AppConfig{}, err
 	}
 
-	inferenceEngineCfg := &inferenceServerCfg.InferenceClient{
-		APIKey: os.Getenv("OPENAI_API"),
+	inferenceEngineCfg, err := config.LoadInto[inferenceServerCfg.Config](loader, "inference_server.yml")
+	if err != nil {
+		return AppConfig{}, err
 	}
+	inferenceEngineCfg.InferenceServer.APIKey = os.Getenv("OPENAI_API")
 
 	return AppConfig{
 		PostgresCfg:        pgCfg,

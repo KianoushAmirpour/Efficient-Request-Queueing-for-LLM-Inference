@@ -12,35 +12,38 @@ import (
 	"github.com/openai/openai-go/option"
 
 	"efficient-request-queueing-for-llm-inference/internal/inference_server/domain"
+	config "efficient-request-queueing-for-llm-inference/internal/inference_server/infrastructure/config"
 )
 
 type OpenaiClient struct {
-	client openai.Client
+	client            openai.Client
+	streamIdleTimeout time.Duration
 }
 
 func NewOpenAIClient(
-	apiKey string,
+	cfg config.InferenceClient,
 ) *OpenaiClient {
 
 	transport := &http.Transport{
-		MaxIdleConns:        20,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
+		MaxIdleConns:        cfg.MaxIdleConnections,
+		MaxIdleConnsPerHost: cfg.MaxIdleConnectionsHost,
+		IdleConnTimeout:     cfg.ConnectionIdleTimeout,
+		TLSHandshakeTimeout: cfg.TLSHandshakeTimeout,
 	}
 
 	client := openai.NewClient(
-		option.WithBaseURL("https://api.avalai.ir/v1"),
-		option.WithAPIKey(apiKey),
-		option.WithMaxRetries(3),
+		option.WithBaseURL(cfg.BaseURL),
+		option.WithAPIKey(cfg.APIKey),
+		option.WithMaxRetries(cfg.MaxRetries),
 		option.WithHTTPClient(&http.Client{
-			Timeout:   10 * time.Minute,
+			Timeout:   cfg.StreamTotalTimeout,
 			Transport: transport,
 		}),
 	)
 
 	return &OpenaiClient{
-		client: client,
+		client:            client,
+		streamIdleTimeout: cfg.StreamIdleTimeout,
 	}
 }
 
@@ -50,8 +53,16 @@ func (c *OpenaiClient) GenerateStream(
 	onChunk func(domain.GenerationChunk) error,
 ) error {
 
+	streamCtx, cancelStream := context.WithCancelCause(ctx)
+	defer cancelStream(nil)
+
+	idleTimer := time.AfterFunc(c.streamIdleTimeout, func() {
+		cancelStream(domain.ErrStreamIdleTimeout)
+	})
+	defer idleTimer.Stop()
+
 	stream := c.client.Chat.Completions.NewStreaming(
-		ctx,
+		streamCtx,
 		openai.ChatCompletionNewParams{
 			Model: openai.ChatModel(req.Model),
 			Messages: []openai.ChatCompletionMessageParamUnion{
@@ -69,6 +80,7 @@ func (c *OpenaiClient) GenerateStream(
 	var finishReason string
 
 	for stream.Next() {
+		idleTimer.Stop()
 
 		event := stream.Current()
 
@@ -88,6 +100,12 @@ func (c *OpenaiClient) GenerateStream(
 				return fmt.Errorf("chunk processing failed: %w", domain.ErrStreamInterrupted)
 			}
 		}
+
+		idleTimer.Reset(c.streamIdleTimeout)
+	}
+
+	if errors.Is(context.Cause(streamCtx), domain.ErrStreamIdleTimeout) {
+		return fmt.Errorf("streaming generation: %w: %w", domain.ErrServerOverloaded, domain.ErrStreamIdleTimeout)
 	}
 
 	if err := stream.Err(); err != nil {
