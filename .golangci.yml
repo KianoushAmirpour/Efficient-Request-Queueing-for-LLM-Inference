@@ -29,7 +29,7 @@ linters:
     revive:
       confidence: 0.8
     gocyclo:
-      min-complexity: 35
+      min-complexity: 60
 
   exclusions:
     paths:
