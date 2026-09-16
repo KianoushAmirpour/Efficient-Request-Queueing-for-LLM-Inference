@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
+	infraredis "efficient-request-queueing-for-llm-inference/infra/redis"
 	logging "efficient-request-queueing-for-llm-inference/internal/observability/logger"
 	sharederr "efficient-request-queueing-for-llm-inference/internal/shared/errors"
 )
@@ -53,6 +54,16 @@ func BuildApplication(rootctx context.Context) (*Application, error) {
 
 	moduleRegistry, err := composeModules(pgPool, redisClient, appCfg, log)
 	if err != nil {
+		pgPool.Close()
+		if err := infraredis.Shutdown(dbctx, redisClient, log); err != nil {
+			log.ErrorContext(
+				dbctx,
+				"failed to shut down redis",
+				"error.code", sharederr.ErrCodeInternal,
+				"error.type", "REDIS_SHUTDOWN_FAILED",
+				"error", err,
+			)
+		}
 		return nil, err
 	}
 
