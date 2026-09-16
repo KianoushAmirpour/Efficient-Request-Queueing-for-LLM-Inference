@@ -219,7 +219,7 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		return domain.ErrNoJobAvailable
 	}
 
-	jobCtx, jobCancel := context.WithCancelCause(ctx)
+	jobCtx, jobCancel := context.WithCancelCause(context.Background())
 	defer jobCancel(nil)
 
 	w.logger.InfoContext(jobCtx, "claimed job", "worker.id", workerID, "job.id", claim.JobID)
@@ -291,6 +291,8 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		<-heartbeatDone
 	}
 
+	cleanupCtx := context.WithoutCancel(jobCtx)
+
 	retryPolicy, err := w.jobRepo.GetRetryPolicy(jobCtx, claim.UserID)
 	if err != nil {
 		w.logger.WarnContext(
@@ -339,6 +341,8 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 
 	if payloadErr != nil {
 
+		stopHeartbeatAndWait()
+
 		if cause := context.Cause(jobCtx); errors.Is(cause, domain.ErrLeaseExtendFailed) {
 			w.logger.ErrorContext(
 				jobCtx,
@@ -346,21 +350,18 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 				"worker.id", workerID,
 				"job.id", claim.JobID)
 
-			stopHeartbeatAndWait()
 			return fmt.Errorf("%w: %w", domain.ErrLeaseExtendFailed, payloadErr)
 		}
 
-		if markErr := w.jobRepo.MarkFailed(jobCtx, claim.JobID, int(retryPolicy.MaxAttempts)); markErr != nil {
+		if markErr := w.jobRepo.MarkFailed(cleanupCtx, claim.JobID, int(retryPolicy.MaxAttempts)); markErr != nil {
 			w.logger.ErrorContext(jobCtx, "failed to mark job as failed", "worker.id", workerID, "job.id", claim.JobID, "error", markErr)
 		}
 
-		stopHeartbeatAndWait()
-
-		if err := w.idempotencyUpdater.TransitionStatus(jobCtx, claim.UserID, claim.JobID, "failed"); err != nil {
+		if err := w.idempotencyUpdater.TransitionStatus(cleanupCtx, claim.UserID, claim.JobID, "failed"); err != nil {
 			w.logger.ErrorContext(jobCtx, "failed to mark idempotency as failed", "worker.id", workerID, "job.id", claim.JobID, "error", err)
 		}
 
-		if err := w.queueService.Release(jobCtx, claim.JobID); err != nil {
+		if err := w.queueService.Release(cleanupCtx, claim.JobID); err != nil {
 			w.logger.ErrorContext(
 				jobCtx,
 				"failed to release job from processing set",
@@ -368,6 +369,13 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 				"job.id", claim.JobID,
 				"error", err,
 			)
+		}
+
+		if w.streamPublisher != nil {
+			message := `{"message":"We could not complete your request after several attempts. Please try again later."}`
+			if publishErr := w.streamPublisher.PublishEvent(cleanupCtx, claim.JobID, "failed", message); publishErr != nil {
+				w.logger.ErrorContext(jobCtx, "failed to publish terminal inference failure", "worker.id", workerID, "job.id", claim.JobID, "error", publishErr)
+			}
 		}
 
 		return err
@@ -447,6 +455,8 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 
 	if err != nil {
 
+		stopHeartbeatAndWait()
+
 		if cause := context.Cause(jobCtx); errors.Is(cause, domain.ErrLeaseExtendFailed) {
 			w.logger.ErrorContext(
 				jobCtx,
@@ -454,11 +464,10 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 				"worker.id", workerID,
 				"job.id", claim.JobID)
 
-			stopHeartbeatAndWait()
 			return fmt.Errorf("%w: %w", domain.ErrLeaseExtendFailed, err)
 		}
 
-		if markErr := w.jobRepo.MarkFailed(jobCtx, claim.JobID, retryCount); markErr != nil {
+		if markErr := w.jobRepo.MarkFailed(cleanupCtx, claim.JobID, retryCount); markErr != nil {
 			w.logger.ErrorContext(
 				jobCtx,
 				"failed to mark job as failed after inference error",
@@ -468,13 +477,11 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 			)
 		}
 
-		stopHeartbeatAndWait()
-
-		if err := w.idempotencyUpdater.TransitionStatus(jobCtx, claim.UserID, claim.JobID, "failed"); err != nil {
+		if err := w.idempotencyUpdater.TransitionStatus(cleanupCtx, claim.UserID, claim.JobID, "failed"); err != nil {
 			w.logger.ErrorContext(jobCtx, "failed to mark idempotency as failed", "worker.id", workerID, "job.id", claim.JobID, "error", err)
 		}
 
-		if err := w.queueService.Release(jobCtx, claim.JobID); err != nil {
+		if err := w.queueService.Release(cleanupCtx, claim.JobID); err != nil {
 			w.logger.ErrorContext(
 				jobCtx,
 				"failed to release job from processing set",
@@ -486,7 +493,7 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 
 		if w.streamPublisher != nil {
 			message := `{"message":"We could not complete your request after several attempts. Please try again later."}`
-			if publishErr := w.streamPublisher.PublishEvent(jobCtx, claim.JobID, "failed", message); publishErr != nil {
+			if publishErr := w.streamPublisher.PublishEvent(cleanupCtx, claim.JobID, "failed", message); publishErr != nil {
 				w.logger.ErrorContext(jobCtx, "failed to publish terminal inference failure", "worker.id", workerID, "job.id", claim.JobID, "error", publishErr)
 			}
 		}
@@ -494,15 +501,21 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		return err
 	}
 
+	onSuccessCleanupCtx, onSuccessCleanupCancel := context.WithTimeout(
+		context.WithoutCancel(jobCtx),
+		10*time.Second,
+	)
+	defer onSuccessCleanupCancel()
+
 	if w.queueService != nil {
-		if markerErr := w.queueService.MarkCompleted(jobCtx, claim.JobID); markerErr != nil {
-			w.logger.ErrorContext(jobCtx, "failed to mark execution completed", "job.id", claim.JobID, "error", markerErr)
+		if markerErr := w.queueService.MarkCompleted(onSuccessCleanupCtx, claim.JobID); markerErr != nil {
+			w.logger.ErrorContext(onSuccessCleanupCtx, "failed to mark execution completed", "job.id", claim.JobID, "error", markerErr)
 		}
 	}
 
-	if err := w.jobRepo.MarkCompleted(jobCtx, claim.JobID, retryCount); err != nil {
+	if err := w.jobRepo.MarkCompleted(onSuccessCleanupCtx, claim.JobID, retryCount); err != nil {
 		w.logger.ErrorContext(
-			jobCtx,
+			onSuccessCleanupCtx,
 			"failed to mark job as completed",
 			"worker.id", workerID,
 			"job.id", claim.JobID,
@@ -512,27 +525,27 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		stopHeartbeatAndWait()
 
 		if w.streamPublisher != nil {
-			_ = w.streamPublisher.Close(context.WithoutCancel(jobCtx), claim.JobID)
+			_ = w.streamPublisher.Close(onSuccessCleanupCtx, claim.JobID)
 		}
-		_ = w.queueService.Release(context.WithoutCancel(jobCtx), claim.JobID)
+		_ = w.queueService.Release(onSuccessCleanupCtx, claim.JobID)
 		return err
 	}
 
 	stopHeartbeatAndWait()
 
-	if err := w.idempotencyUpdater.TransitionStatus(jobCtx, claim.UserID, claim.JobID, "completed"); err != nil {
-		w.logger.ErrorContext(jobCtx, "failed to mark idempotency as completed", "worker.id", workerID, "job.id", claim.JobID, "error", err)
+	if err := w.idempotencyUpdater.TransitionStatus(onSuccessCleanupCtx, claim.UserID, claim.JobID, "completed"); err != nil {
+		w.logger.ErrorContext(onSuccessCleanupCtx, "failed to mark idempotency as completed", "worker.id", workerID, "job.id", claim.JobID, "error", err)
 	}
 
 	if w.streamPublisher != nil {
-		if publishErr := w.streamPublisher.Close(jobCtx, claim.JobID); publishErr != nil {
-			w.logger.ErrorContext(jobCtx, "failed to publish completed inference event", "worker.id", workerID, "job.id", claim.JobID, "error", publishErr)
+		if publishErr := w.streamPublisher.Close(onSuccessCleanupCtx, claim.JobID); publishErr != nil {
+			w.logger.ErrorContext(onSuccessCleanupCtx, "failed to publish completed inference event", "worker.id", workerID, "job.id", claim.JobID, "error", publishErr)
 		}
 	}
 
-	if err := w.queueService.Release(context.WithoutCancel(jobCtx), claim.JobID); err != nil {
+	if err := w.queueService.Release(onSuccessCleanupCtx, claim.JobID); err != nil {
 		w.logger.ErrorContext(
-			jobCtx,
+			onSuccessCleanupCtx,
 			"failed to release job from processing set",
 			"worker.id", workerID,
 			"job.id", claim.JobID,
@@ -540,6 +553,6 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		)
 	}
 
-	w.logger.InfoContext(jobCtx, "completed job", "worker.id", workerID, "job.id", claim.JobID)
+	w.logger.InfoContext(onSuccessCleanupCtx, "completed job", "worker.id", workerID, "job.id", claim.JobID)
 	return nil
 }
