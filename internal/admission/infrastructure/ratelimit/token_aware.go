@@ -32,8 +32,8 @@ func NewRedisRateLimiter(client *redis.Client, cfg RateLimitConfig) RedisRateLim
 	}
 }
 
-func (r RedisRateLimiter) key(userID string) string {
-	return fmt.Sprintf("llm:rate-limit:user:%s", userID)
+func (r RedisRateLimiter) key(userID, tier string) string {
+	return fmt.Sprintf("llm:rate-limit:user:%s:tier:%s", userID, tier)
 }
 
 var allowScript = redis.NewScript(`
@@ -67,7 +67,7 @@ if not tokens then
 else
   tokens = tonumber(tokens)
   last   = tonumber(last)
-  local elapsed = math.max(0, now - last) / 1e9
+  local elapsed = math.max(0, now - last) / 1000
   tokens = math.min(capacity, tokens + elapsed * fillRate)
 end
 
@@ -97,8 +97,8 @@ func (r RedisRateLimiter) Allow(
 		}
 	}
 
-	now := time.Now().UnixNano()
-	key := r.key(userID)
+	now := time.Now().UnixMilli()
+	key := r.key(userID, tier)
 	cost := inputTokens + maxOutputTokens
 
 	res, err := allowScript.Run(
