@@ -120,7 +120,9 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 	}
 
 	if dl, ok := ctx.Deadline(); ok && time.Until(dl) < 8*time.Second {
-		i.jobService.MarkFailed(compensationCtx, job.JobID, job.CurrentAttempt)
+		if markErr := i.jobService.MarkFailed(compensationCtx, job.JobID, job.CurrentAttempt); markErr != nil {
+			i.logger.WarnContext(compensationCtx, "failed to mark queue-full job failed", "job.id", job.JobID, "error", markErr)
+		}
 		_ = i.idempotencyService.TransitionStatus(compensationCtx, job.JobID, "failed")
 		remCoalErr := i.coalescingService.Delete(compensationCtx, userID, hashRequest)
 		if remCoalErr != nil {
