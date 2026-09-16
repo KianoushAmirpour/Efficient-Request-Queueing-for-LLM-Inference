@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"efficient-request-queueing-for-llm-inference/internal/inference/domain"
 	inferenceConfig "efficient-request-queueing-for-llm-inference/internal/inference/infrastructure/config"
@@ -85,9 +86,12 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 		return "", sharederr.EnsureAppError(coalescingDecision.Error, inferencePublic.ErrCodeCoalescingRejected, ErrTypeInference)
 	}
 
+	compensationCtx, compensationCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer compensationCancel()
+
 	admittedReq, admitErr := i.admissionService.Admit(ctx, validatedTask)
 	if admitErr != nil {
-		err := i.cleanupClaims(ctx, userID, idempotencyHeader, hashRequest)
+		err := i.cleanupClaims(compensationCtx, userID, idempotencyHeader, hashRequest)
 		if err != nil {
 			return "", err
 		}
@@ -96,7 +100,7 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 
 	job, err := i.jobService.Create(ctx, admittedReq)
 	if err != nil {
-		err := i.cleanupClaims(ctx, userID, idempotencyHeader, hashRequest)
+		err := i.cleanupClaims(compensationCtx, userID, idempotencyHeader, hashRequest)
 		if err != nil {
 			return "", err
 		}
@@ -105,14 +109,26 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 
 	err = i.idempotencyService.SetJobID(ctx, userID, idempotencyHeader, job.JobID)
 	if err != nil {
-		if markErr := i.jobService.MarkFailed(ctx, job.JobID, job.CurrentAttempt); markErr != nil {
-			i.logger.WarnContext(ctx, "failed to compensate job after idempotency binding failure", "job.id", job.JobID, "error", markErr)
+		if markErr := i.jobService.MarkFailed(compensationCtx, job.JobID, job.CurrentAttempt); markErr != nil {
+			i.logger.WarnContext(compensationCtx, "failed to compensate job after idempotency binding failure", "job.id", job.JobID, "error", markErr)
 		}
-		err := i.cleanupClaims(ctx, userID, idempotencyHeader, hashRequest)
+		err := i.cleanupClaims(compensationCtx, userID, idempotencyHeader, hashRequest)
 		if err != nil {
 			return "", err
 		}
 		return "", sharederr.EnsureAppError(err, inferencePublic.ErrCodeCheckIdempotencyFailed, ErrTypeInference)
+	}
+
+	if dl, ok := ctx.Deadline(); ok && time.Until(dl) < 8*time.Second {
+		i.jobService.MarkFailed(compensationCtx, job.JobID, job.CurrentAttempt)
+		_ = i.idempotencyService.TransitionStatus(compensationCtx, job.JobID, "failed")
+		remCoalErr := i.coalescingService.Delete(compensationCtx, userID, hashRequest)
+		if remCoalErr != nil {
+			i.logger.WarnContext(ctx, "failed to delete coalescing key after queue-full rejection", "error", remCoalErr)
+		}
+		return "", sharederr.EnsureAppError(
+			errors.New("request deadline too short to enqueue job"),
+			inferencePublic.ErrCodeCheckIdempotencyFailed, ErrTypeInference)
 	}
 
 	_, err = i.queueService.TryEnqueue(
@@ -124,18 +140,18 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 		})
 	if err != nil {
 		if errors.Is(err, domain.ErrQueueFull) {
-			if markErr := i.jobService.MarkFailed(ctx, job.JobID, job.CurrentAttempt); markErr != nil {
+			if markErr := i.jobService.MarkFailed(compensationCtx, job.JobID, job.CurrentAttempt); markErr != nil {
 				i.logger.WarnContext(ctx, "failed to mark queue-full job failed", "job.id", job.JobID, "error", markErr)
 			}
-			_ = i.idempotencyService.TransitionStatus(ctx, job.JobID, "failed")
-			remCoalErr := i.coalescingService.Delete(ctx, userID, hashRequest)
+			_ = i.idempotencyService.TransitionStatus(compensationCtx, job.JobID, "failed")
+			remCoalErr := i.coalescingService.Delete(compensationCtx, userID, hashRequest)
 			if remCoalErr != nil {
 				i.logger.WarnContext(ctx, "failed to delete coalescing key after queue-full rejection", "error", remCoalErr)
 			}
 		}
+
 		return "", sharederr.EnsureAppError(err, inferencePublic.ErrCodeEnqueueFailed, ErrTypeInference)
 	}
-
 	return job.JobID, nil
 }
 

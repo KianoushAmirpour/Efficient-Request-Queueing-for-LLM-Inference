@@ -14,4 +14,5 @@ const (
 	ErrCodeReleaseCoalescing      string = "RELEASE_COALESCING_FAILED"
 	ErrCodeReleaseIdempotencyKey  string = "RELEASE_IDEMPOTENCY_FAILED"
 	ErrCodeIdempotencyJobFailed   string = "IDEMPOTENCY_JOB_FAILED"
+	ErrCodeSubmitDeadlineExceeded string = "SUBMIT_DEADLINE_EXCEEDED"
 )

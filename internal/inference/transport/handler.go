@@ -43,13 +43,13 @@ func (s *SubmitInferenceHandler) HandleUserRequests(c *gin.Context) {
 	userID := c.GetString("userID")
 	idempotencyHeader := c.GetString("Idempotency-Header")
 
-	JobID, err := s.SubmitInferenceUseCase.Submit(c.Request.Context(), incomingTask, userID, idempotencyHeader)
+	jobID, err := s.SubmitInferenceUseCase.Submit(c.Request.Context(), incomingTask, userID, idempotencyHeader)
 	if err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	streamPath := fmt.Sprintf("/api/stream/%s", JobID)
+	streamPath := fmt.Sprintf("/api/stream/%s", jobID)
 	streamURL := fmt.Sprintf("%s://%s%s",
 		c.Request.URL.Scheme,
 		c.Request.Host,
@@ -58,7 +58,7 @@ func (s *SubmitInferenceHandler) HandleUserRequests(c *gin.Context) {
 
 	c.Header("Location", streamURL)
 	c.JSON(http.StatusAccepted, InferenceResponse{
-		JobID:     JobID,
+		JobID:     jobID,
 		Message:   "Inference request accepted and queued for processing.",
 		StreamURL: streamPath,
 	})

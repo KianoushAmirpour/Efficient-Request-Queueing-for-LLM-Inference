@@ -9,7 +9,7 @@ import (
 func RegisterInferenceRoutes(rg *gin.RouterGroup, handler *SubmitInferenceHandler) {
 	inference := rg.Group("/request")
 	inference.Use(
-		TimeoutMiddleware(10*time.Second),
+		TimeoutMiddleware(25*time.Second),
 		ErrorHandler(handler.logger),
 		AuthenticateMiddleware(handler.logger, handler.AccessTokenValidator),
 		IdempotencyKeyMiddleware(),
