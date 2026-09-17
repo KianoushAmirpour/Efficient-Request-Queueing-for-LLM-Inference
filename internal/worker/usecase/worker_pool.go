@@ -441,7 +441,7 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 					if pubErr := w.streamPublisher.Publish(jobCtx, claim.JobID, chunk); pubErr != nil {
 						w.logger.ErrorContext(jobCtx, "failed to publish chunk",
 							"worker.id", workerID, "job.id", claim.JobID, "error", pubErr)
-						return nil
+						return pubErr
 					}
 					return nil
 				})
