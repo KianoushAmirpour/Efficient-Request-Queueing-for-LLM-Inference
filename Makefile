@@ -14,7 +14,7 @@ DB_DSN := postgres://$(MIGRATION_USER):$(MIGRATION_PASSWORD)@$(POSTGRES_HOST):$(
 MIGRATIONS_DIR := ./migrations
 
 # Phony targets
-.PHONY: run up down migrate_up migrate_down lint
+.PHONY: run up down migrate_up migrate_down lint test_integration
 
 run: ## Run the main Go application
 	$(GO) run $(MAIN)
@@ -30,3 +30,6 @@ migrate_up: ## Run database migrations up
 
 lint:
 	golangci-lint run ./...
+
+test_integration:
+	$(GO) test ./tests/integration -count=1
