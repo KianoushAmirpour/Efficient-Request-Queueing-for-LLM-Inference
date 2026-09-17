@@ -150,12 +150,16 @@ func (s *RecoveryService) recoverOne(ctx context.Context, id string, cutoff int6
 
 	next := job.RetryCount
 	if next >= policy.MaxAttempts {
+		claimed, err := s.queue.RemoveIfExpired(ctx, id, cutoff)
+		if err != nil {
+			return sharederr.EnsureAppError(err, recoveryErr.ErrCodeQueueRecoveryFailed, ErrTypeRecovery)
+		}
+		if !claimed {
+			return nil
+		}
+
 		if err = s.statuses.MarkFailed(ctx, id, next); err != nil {
 			return sharederr.NewAppError(recoveryErr.ErrCodeJobStatusUpdateFailed, ErrTypeRecovery, err)
-		}
-		claimed, err := s.queue.RemoveIfExpired(ctx, id, cutoff)
-		if err != nil || !claimed {
-			return sharederr.EnsureAppError(err, recoveryErr.ErrCodeQueueRecoveryFailed, ErrTypeRecovery)
 		}
 		if _, err = s.idempotency.TransitionStatus(ctx, id, "failed"); err != nil {
 			return sharederr.NewAppError(recoveryErr.ErrCodeIdempotencyUpdateFailed, ErrTypeRecovery, err)
@@ -163,16 +167,16 @@ func (s *RecoveryService) recoverOne(ctx context.Context, id string, cutoff int6
 		return sharederr.EnsureAppError(s.events.PublishEvent(ctx, id, "failed", "recovery retry limit exceeded"), recoveryErr.ErrCodeEventPublishFailed, ErrTypeRecovery)
 	}
 	next = job.RetryCount + 1
-	updated, err := s.statuses.UpdateCreated(ctx, id, next)
+	claimed, err := s.queue.RequeueIfExpired(ctx, id, job.UserID, cutoff)
 	if err != nil {
-		return sharederr.EnsureAppError(err, recoveryErr.ErrCodeJobStatusUpdateFailed, ErrTypeRecovery)
+		return sharederr.EnsureAppError(err, recoveryErr.ErrCodeQueueRecoveryFailed, ErrTypeRecovery)
 	}
-	if !updated {
+	if !claimed {
 		return nil
 	}
-	claimed, err := s.queue.RequeueIfExpired(ctx, id, job.UserID, cutoff)
-	if err != nil || !claimed {
-		return sharederr.EnsureAppError(err, recoveryErr.ErrCodeQueueRecoveryFailed, ErrTypeRecovery)
+
+	if _, err := s.statuses.UpdateCreated(ctx, id, next); err != nil {
+		return sharederr.EnsureAppError(err, recoveryErr.ErrCodeJobStatusUpdateFailed, ErrTypeRecovery)
 	}
 	return nil
 }
