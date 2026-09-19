@@ -18,6 +18,7 @@ const (
 	activeUsersKey       = "scheduler:active_users"
 	processingJobsKey    = "processing_jobs"
 	completedJobsKey     = "completed_jobs"
+	rotationSequenceKey  = "scheduler:rotation_seq"
 )
 
 func buildQueuePerUserKey(userID string) string {
@@ -46,7 +47,7 @@ func (r *RedisSchedulerRepository) ClaimNextJob(ctx context.Context, workerID in
 	val, err := fairDequeueScript.Run(
 		ctx,
 		r.client,
-		[]string{activeUsersKey, processingJobsKey},
+		[]string{activeUsersKey, processingJobsKey, rotationSequenceKey},
 		r.lease.Milliseconds()).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -88,7 +89,7 @@ func (r *RedisSchedulerRepository) PushLeft(ctx context.Context, entry domain.Qu
 	result, err := enqueueScript.Run(
 		ctx,
 		r.client,
-		[]string{idempotentKey, userQueueKey, activeUsersKey},
+		[]string{idempotentKey, userQueueKey, activeUsersKey, rotationSequenceKey},
 		entry.JobID,
 		int(r.config.IdempotencyKeyTTL.Seconds()),
 		r.config.QueueCapacity,
@@ -183,7 +184,13 @@ func (r *RedisSchedulerRepository) RemoveIfExpired(ctx context.Context, jobID st
 }
 
 func (r *RedisSchedulerRepository) RequeueIfExpired(ctx context.Context, jobID, userID string, cutoffMs int64) (bool, error) {
-	n, err := requeueExpiredScript.Run(ctx, r.client, []string{processingJobsKey, activeUsersKey, buildQueuePerUserKey(userID)}, jobID, userID, cutoffMs).Int()
+	n, err := requeueExpiredScript.Run(
+		ctx,
+		r.client,
+		[]string{processingJobsKey, activeUsersKey, buildQueuePerUserKey(userID), rotationSequenceKey},
+		jobID,
+		userID,
+		cutoffMs).Int()
 	if err != nil {
 		return false, fmt.Errorf("requeue expired processing job: %w", err)
 	}
@@ -206,7 +213,13 @@ func (r *RedisSchedulerRepository) RemoveCompletedJob(ctx context.Context, jobID
 }
 
 func (r *RedisSchedulerRepository) EnqueueIfAbsent(ctx context.Context, jobID, userID string, capacity int) (bool, error) {
-	result, err := enqueueOrphanScript.Run(ctx, r.client, []string{completedJobsKey, processingJobsKey, buildQueuePerUserKey(userID), activeUsersKey}, jobID, userID, capacity).Int()
+	result, err := enqueueOrphanScript.Run(
+		ctx,
+		r.client,
+		[]string{completedJobsKey, processingJobsKey, buildQueuePerUserKey(userID), activeUsersKey, rotationSequenceKey},
+		jobID,
+		userID,
+		capacity).Int()
 	if err != nil {
 		return false, fmt.Errorf("enqueue orphan job: %w", err)
 	}

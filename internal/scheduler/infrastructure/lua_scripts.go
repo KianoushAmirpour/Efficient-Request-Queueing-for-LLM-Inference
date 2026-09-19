@@ -30,6 +30,7 @@ return redis.call("ZREM", KEYS[1], ARGV[1])
 -- KEYS[1]: sorted set key for processing jobs 
 -- KEYS[2]: sorted set key for active users
 -- KEYS[3]: list key for user-specific queue 
+-- KEYS[4] = rotation sequence key
 -- ARGV[1]: job ID
 -- ARGV[2]: user ID
 -- ARGV[3]: cutoff timestamp in milliseconds
@@ -44,11 +45,10 @@ end
 redis.call("ZREM", KEYS[1], ARGV[1])
 redis.call("LPUSH", KEYS[3], ARGV[1])
 
--- 3. Check if the queue was previously empty (length is now 1)
+-- 3. If the queue was previously empty, activate the user
 if redis.call("LLEN", KEYS[3]) == 1 then
-    local t = redis.call("TIME")
-    local now_ms = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
-    redis.call("ZADD", KEYS[2], "NX", now_ms, ARGV[2])
+    local rotation = redis.call("INCR", KEYS[4])
+    redis.call("ZADD", KEYS[2], "NX", rotation, ARGV[2])
 end
 
 return 1
@@ -57,6 +57,7 @@ return 1
 	fairDequeueScript = redis.NewScript(`
 -- KEYS[1]: sorted set key for active users
 -- KEYS[2]: sorted set key for processing jobs
+-- KEYS[3]: rotation sequence key
 -- ARGV[1]: lease duration in milliseconds
 
 if redis.call("ZCARD", KEYS[1]) == 0 then
@@ -76,8 +77,7 @@ local remaining = redis.call("LLEN", "queue:user:" .. user)
 
 if remaining > 0 then
     -- More jobs: update score to move user to end of round-robin
-    local t = redis.call("TIME")
-    local score = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
+    local score = redis.call("INCR", KEYS[3])
     redis.call("ZADD", KEYS[1], score, user)
 else
     -- No more jobs: remove user from active set entirely
@@ -96,6 +96,7 @@ return {user, job}
 -- KEYS[1] = idempotency key
 -- KEYS[2] = user queue key
 -- KEYS[3] = active user set
+-- KEYS[4] = rotation sequence key
 
 -- ARGV[1] = job id
 -- ARGV[2] = idempotency ttl
@@ -118,10 +119,9 @@ redis.call("LPUSH", KEYS[2], ARGV[1])
 
 if queueLength == 0 then
 
-    local t = redis.call("TIME")
-    local score = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
+    local score = redis.call("INCR", KEYS[4])
 
-    redis.call("ZADD", KEYS[3], "NX", tostring(score), ARGV[4])
+    redis.call("ZADD", KEYS[3], "NX", score, ARGV[4])
 
     return { 2 } -- job became active
 end
@@ -134,6 +134,7 @@ return { 3 } -- job enqueued successfully but not active
 -- KEYS[2]: processing jobs set (Sorted Set)
 -- KEYS[3]: user-specific queue (List)
 -- KEYS[4]: active users set (Sorted Set)
+-- KEYS[5]: rotation sequence key
 -- ARGV[1]: job ID
 -- ARGV[2]: user ID
 -- ARGV[3]: max queue capacity per user
@@ -148,9 +149,8 @@ local wasEmpty = redis.call("LLEN", KEYS[3]) == 0
 redis.call("LPUSH", KEYS[3], ARGV[1])
 
 if wasEmpty then
-    local t = redis.call("TIME")
-    local now_ms = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
-    redis.call("ZADD", KEYS[4], "NX", now_ms, ARGV[2])
+    local seq = redis.call("INCR", KEYS[5])
+    redis.call("ZADD", KEYS[4], "NX", seq, ARGV[2])
 end
 
 return 1
