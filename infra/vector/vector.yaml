@@ -1,0 +1,35 @@
+data_dir: /var/lib/vector
+
+sources:
+  docker_logs:
+    type: docker_logs
+    auto_partial_merge: true
+
+transforms:
+  add_service:
+    type: remap
+    inputs:
+      - docker_logs
+    source: |
+      .service = .container_name
+
+sinks:
+  victorialogs:
+    type: http
+    inputs:
+      - add_service
+
+    uri: "http://victorialogs:9428/insert/jsonline?_stream_fields=service,container_name,stream&_msg_field=message&_time_field=timestamp"
+
+    method: post
+
+    compression: gzip
+
+    encoding:
+      codec: json
+
+    framing:
+      method: newline_delimited
+
+    healthcheck:
+      enabled: false

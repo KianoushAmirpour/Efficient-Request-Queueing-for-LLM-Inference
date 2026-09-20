@@ -1,0 +1,70 @@
+# Version control
+.git
+.gitignore
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in container)
+docs/
+README.md
+LICENSE
+
+# Test files (optional - include if you want tests in container)
+*_test.go
+
+# Build artifacts (if any exist at root)
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Environment and secrets (should never be in image)
+.env
+.env.*
+
+# Docker files (not needed inside container)
+docker-compose-dev.yml
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Infrastructure files not needed in the application image
+infra/docker-compose-dev.yml
+infra/docker-compose.yml
+infra/Dockerfile
+infra/pg_db/scripts/
+infra/prometheus/
+infra/vector/
+
+# Infrastructure Go packages required to compile the application
+!infra/config/
+!infra/config/**
+!infra/pg_db/
+!infra/pg_db/pg.go
+!infra/redis/
+!infra/redis/redis.go
+
+# Local development files
+tmp/
+temp/
+*.log
+
+# Go specific
+go.work
+go.work.sum
+
+# Makefile (not needed in runtime)
+Makefile
+
+# Documentation (optional, exclude from build context)
+*.md
+LICENSE
