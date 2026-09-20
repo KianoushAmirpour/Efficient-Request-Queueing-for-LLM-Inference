@@ -162,7 +162,7 @@ func TestSchedulerSkipsEmptyActiveUserAndSelectsNextEligibleUser(t *testing.T) {
 	if claim == nil {
 		t.Skip("scheduler currently removes an empty active user and returns nil instead of continuing to the next eligible user")
 	}
-	if claim == nil || claim.UserID != "ready-user" || claim.JobID != "ready-job" {
+	if claim.UserID != "ready-user" || claim.JobID != "ready-job" {
 		t.Fatalf("claim=%+v; want ready-user/ready-job after skipping empty-user", claim)
 	}
 }

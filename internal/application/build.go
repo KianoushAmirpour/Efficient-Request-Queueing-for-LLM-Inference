@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,8 +26,7 @@ func BuildApplication(rootctx context.Context) (*Application, error) {
 
 	slog.SetDefault(log)
 
-	err := godotenv.Load()
-	if err != nil {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		log.ErrorContext(
 			rootctx,
 			"loading env files failed",
