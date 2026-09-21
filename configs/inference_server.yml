@@ -1,5 +1,5 @@
 inference_server:
-  base_url: https://api.avalai.ir/v1
+  base_url: 
   max_retries: 3
   dial_timeout: 5s
   tls_handshake_timeout: 5s
