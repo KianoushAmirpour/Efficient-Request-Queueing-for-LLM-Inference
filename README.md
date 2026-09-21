@@ -1,4 +1,4 @@
-# Efficient Request Queue
+#  Efficient Request Queue for Self-Hosted LLM Inference
 
 A request queue for managing authenticated client access to self-hosted LLM inference. It sits between clients and an OpenAI-compatible inference server, turning expensive inference work into a controlled and observable workflow with per-user scheduling fairness.
 
@@ -343,6 +343,10 @@ make test_integration
 make migrate_down
 make dev_down
 ```
+
+## Scope
+
+The project does not implement or deploy an LLM inference engine. It treats the inference server as an external OpenAI-compatible dependency configured through a base URL.
 
 ## TODO
 
