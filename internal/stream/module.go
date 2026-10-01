@@ -18,6 +18,8 @@ import (
 type StreamDeps struct {
 	RedisClient            *goredis.Client
 	TokenValidationService ports.AccessTokenValidator
+	Metrics                domain.MetricsRecorder
+	JobAcceptedAtReader    domain.JobAcceptedAtReader
 }
 
 type StreamConfig struct{}
@@ -61,7 +63,7 @@ func NewStreamModule(deps StreamDeps, cfg StreamConfig, logger *slog.Logger) (*M
 
 	moduleDeps := buildStreamDeps(deps.RedisClient, deps.TokenValidationService, logger)
 
-	httpHandler := transport.NewStreamHTTPHandler(moduleDeps.subscriber, moduleDeps.accessValidator, logger)
+	httpHandler := transport.NewStreamHTTPHandler(moduleDeps.subscriber, moduleDeps.accessValidator, logger, deps.Metrics, deps.JobAcceptedAtReader)
 
 	return &Module{
 		streamHandler: httpHandler,

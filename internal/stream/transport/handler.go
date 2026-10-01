@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,17 +22,23 @@ type StreamHTTPHandler struct {
 	subscriber           domain.Subscriber
 	AccessTokenValidator ports.AccessTokenValidator
 	logger               *slog.Logger
+	metrics              domain.MetricsRecorder
+	jobAcceptedAtReader  domain.JobAcceptedAtReader
 }
 
 func NewStreamHTTPHandler(
 	subscriber domain.Subscriber,
 	accessTokenValidator ports.AccessTokenValidator,
 	logger *slog.Logger,
+	metrics domain.MetricsRecorder,
+	jobAcceptedAtReaders domain.JobAcceptedAtReader,
 ) *StreamHTTPHandler {
 	return &StreamHTTPHandler{
 		subscriber:           subscriber,
 		AccessTokenValidator: accessTokenValidator,
 		logger:               logger,
+		metrics:              metrics,
+		jobAcceptedAtReader:  jobAcceptedAtReaders,
 	}
 }
 func (h *StreamHTTPHandler) HandleStream(c *gin.Context) {
@@ -116,28 +123,62 @@ func (h *StreamHTTPHandler) HandleStream(c *gin.Context) {
 
 			switch event.Type {
 			case "chunk", "retrying":
+				deliveryStarted := time.Now()
 				if err := writeSSEEvent(c.Writer, event.Type, event.Data); err != nil {
 					return
 				}
 
 				flusher.Flush()
+				if h.metrics != nil {
+					h.metrics.ObserveStreamDelivery(time.Since(deliveryStarted))
+				}
 
 			case "completed":
+				createdAt := h.jobAcceptedAt(ctx, jobID)
+				deliveryStarted := time.Now()
 				if err := writeSSEEvent(c.Writer, event.Type, event.Data); err != nil {
 					return
 				}
 				flusher.Flush()
+				if h.metrics != nil {
+					h.metrics.ObserveStreamDelivery(time.Since(deliveryStarted))
+					h.observeJobEndToEnd(createdAt)
+				}
 				return
 
 			case "failed":
+				createdAt := h.jobAcceptedAt(ctx, jobID)
+				deliveryStarted := time.Now()
 				if err := writeSSEEvent(c.Writer, event.Type, event.Data); err != nil {
 					return
 				}
 
 				flusher.Flush()
+				if h.metrics != nil {
+					h.metrics.ObserveStreamDelivery(time.Since(deliveryStarted))
+					h.observeJobEndToEnd(createdAt)
+				}
 				return
 			}
 		}
+	}
+}
+
+func (h *StreamHTTPHandler) jobAcceptedAt(ctx context.Context, jobID string) time.Time {
+	if h.metrics == nil || h.jobAcceptedAtReader == nil {
+		return time.Time{}
+	}
+	createdAt, err := h.jobAcceptedAtReader.GetJobAcceptedAt(ctx, jobID)
+	if err != nil {
+		h.logger.WarnContext(ctx, "could not read job creation time for stream metric", "jobID", jobID, "error", err)
+		return time.Time{}
+	}
+	return createdAt
+}
+
+func (h *StreamHTTPHandler) observeJobEndToEnd(createdAt time.Time) {
+	if !createdAt.IsZero() {
+		h.metrics.ObserveJobEndToEnd(time.Since(createdAt))
 	}
 }
 
