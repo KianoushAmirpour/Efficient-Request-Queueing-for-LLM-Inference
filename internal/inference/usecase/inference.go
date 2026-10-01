@@ -25,6 +25,7 @@ type SubmitInferenceUseCase struct {
 	queueService       ports.Enqueuer
 	config             inferenceConfig.InferenceConfig
 	logger             *slog.Logger
+	metrics            domain.MetricsRecorder
 }
 
 func NewInferenceUseCase(
@@ -36,6 +37,7 @@ func NewInferenceUseCase(
 	queueSrv ports.Enqueuer,
 	cfg inferenceConfig.InferenceConfig,
 	logger *slog.Logger,
+	metrics domain.MetricsRecorder,
 ) *SubmitInferenceUseCase {
 	return &SubmitInferenceUseCase{
 		admissionService:   admissionSrv,
@@ -46,6 +48,7 @@ func NewInferenceUseCase(
 		queueService:       queueSrv,
 		config:             cfg,
 		logger:             logger,
+		metrics:            metrics,
 	}
 }
 
@@ -61,7 +64,6 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 	if idempotencyErr != nil {
 		return "", sharederr.EnsureAppError(idempotencyErr, inferencePublic.ErrCodeCheckIdempotencyFailed, ErrTypeInference)
 	}
-
 	switch idempotentResult.Action {
 	case domain.ActionNew:
 	case domain.ActionDuplicateInFlight:
@@ -153,6 +155,9 @@ func (i *SubmitInferenceUseCase) Submit(ctx context.Context, inferenceInput *dom
 		}
 
 		return "", sharederr.EnsureAppError(err, inferencePublic.ErrCodeEnqueueFailed, ErrTypeInference)
+	}
+	if i.metrics != nil {
+		i.metrics.JobAccepted()
 	}
 	return job.JobID, nil
 }

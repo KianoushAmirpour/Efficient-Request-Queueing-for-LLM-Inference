@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	"efficient-request-queueing-for-llm-inference/internal/inference/domain"
 	"efficient-request-queueing-for-llm-inference/internal/inference/infrastructure/coalescing"
 	inferenceConfig "efficient-request-queueing-for-llm-inference/internal/inference/infrastructure/config"
 	"efficient-request-queueing-for-llm-inference/internal/inference/infrastructure/hash"
@@ -23,6 +24,7 @@ type InferenceDeps struct {
 	AdmissionService       ports.RequestAdmitter
 	JobService             ports.JobService
 	QueueService           ports.Enqueuer
+	Metrics                domain.MetricsRecorder
 }
 
 type InferenceConfig = inferenceConfig.InferenceConfig
@@ -77,6 +79,7 @@ func NewInferenceModule(
 		deps.QueueService,
 		cfg,
 		logger,
+		deps.Metrics,
 	)
 	return &Module{
 		InferenceHandler: transport.NewSubmitInferenceHandler(inferenceUseCase, deps.TokenValidationService, logger),
