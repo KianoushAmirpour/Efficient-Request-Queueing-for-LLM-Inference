@@ -6,13 +6,16 @@ import (
 	"strings"
 	"time"
 
+	"efficient-request-queueing-for-llm-inference/internal/inference_server/domain"
 	config "efficient-request-queueing-for-llm-inference/internal/inference_server/infrastructure/config"
 	"efficient-request-queueing-for-llm-inference/internal/inference_server/infrastructure/openai"
 	"efficient-request-queueing-for-llm-inference/internal/inference_server/public"
 	"efficient-request-queueing-for-llm-inference/internal/inference_server/usecase"
 )
 
-type InferenceEngineDeps struct{}
+type InferenceEngineDeps struct {
+	Metrics domain.MetricsRecorder
+}
 
 type InferenceEngineConfig = config.InferenceClient
 
@@ -65,7 +68,7 @@ func NewInferenceEngineModule(
 	}
 
 	llmClient := openai.NewOpenAIClient(cfg)
-	generator := usecase.NewStreamUseCase(llmClient)
+	generator := usecase.NewStreamUseCase(llmClient, deps.Metrics)
 
 	return &Module{
 		InferenceEngine: generator,

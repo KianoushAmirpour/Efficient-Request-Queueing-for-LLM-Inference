@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"time"
 
 	"efficient-request-queueing-for-llm-inference/internal/inference_server/domain"
 	"efficient-request-queueing-for-llm-inference/internal/inference_server/public"
@@ -12,11 +13,12 @@ import (
 const ErrTypeInferenceServer = "INFERENCE_SERVER_FAILED"
 
 type streamUseCase struct {
-	client domain.LLMClient
+	client  domain.LLMClient
+	metrics domain.MetricsRecorder
 }
 
-func NewStreamUseCase(llmClient domain.LLMClient) public.StreamGenerator {
-	return &streamUseCase{client: llmClient}
+func NewStreamUseCase(llmClient domain.LLMClient, metrics domain.MetricsRecorder) public.StreamGenerator {
+	return &streamUseCase{client: llmClient, metrics: metrics}
 }
 
 func (u *streamUseCase) GenerateStream(
@@ -32,10 +34,17 @@ func (u *streamUseCase) GenerateStream(
 		Temperature: input.Temperature,
 	}
 
+	started := time.Now()
+	defer func() { u.metrics.ObserveDuration(time.Since(started)) }()
+	firstTokenRecorded := false
 	err := u.client.GenerateStream(ctx, req, func(chunk domain.GenerationChunk) error {
+		if chunk.Text != "" && !firstTokenRecorded {
+			firstTokenRecorded = true
+			u.metrics.ObserveTimeToFirstToken(time.Since(started))
+		}
 
 		pubChunk := public.GenerationChunk{Text: chunk.Text}
-		if onChunk != nil {
+		if chunk.Text != "" && onChunk != nil {
 			return onChunk(pubChunk)
 		}
 		return nil
@@ -44,7 +53,6 @@ func (u *streamUseCase) GenerateStream(
 	if err == nil {
 		return nil
 	}
-
 	switch {
 	case errors.Is(err, domain.ErrInvalidRequest):
 		return sharederr.EnsureAppError(err, public.ErrCodeInvalidRequest, ErrTypeInferenceServer)
