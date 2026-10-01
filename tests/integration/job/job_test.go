@@ -106,7 +106,7 @@ func TestGetExistingJobAndPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get existing job: %v", err)
 	}
-	if snapshot.JobID != jobID || snapshot.UserID != userID || snapshot.Status != string(jobDomain.StatusCreated) || snapshot.RetryCount != 1 {
+	if snapshot.JobID != jobID || snapshot.UserID != userID || snapshot.Status != string(jobDomain.StatusCreated) || snapshot.RetryCount != 1 || snapshot.CreatedAt.IsZero() {
 		t.Fatalf("snapshot=%+v; want created job with attempt 1", snapshot)
 	}
 

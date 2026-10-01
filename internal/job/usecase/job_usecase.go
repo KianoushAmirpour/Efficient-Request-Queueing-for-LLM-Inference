@@ -88,7 +88,6 @@ func (u *JobUsecase) Create(ctx context.Context, req public.CreateJobRequest) (s
 	if err != nil {
 		return "", sharederr.EnsureAppError(err, sharederr.ErrCodeDBTransactionFailed, ErrTypeJob)
 	}
-
 	return result, nil
 }
 
@@ -127,7 +126,6 @@ func (u *JobUsecase) MarkCompleted(ctx context.Context, jobID string, retryCount
 	if err := u.jobRepo.UpdateStatus(ctx, jobID, job.Status, retryCount); err != nil {
 		return sharederr.EnsureAppError(err, public.ErrCodeJobStatusUpdateFailed, ErrTypeJob)
 	}
-
 	return nil
 }
 
@@ -147,7 +145,6 @@ func (u *JobUsecase) MarkFailed(ctx context.Context, jobID string, retryCount in
 	if err := u.jobRepo.UpdateStatus(ctx, jobID, job.Status, retryCount); err != nil {
 		return sharederr.EnsureAppError(err, public.ErrCodeJobStatusUpdateFailed, ErrTypeJob)
 	}
-
 	return nil
 }
 
@@ -178,7 +175,7 @@ func (u *JobUsecase) GetByID(ctx context.Context, jobID string) (public.JobSnaps
 	if err != nil {
 		return public.JobSnapshot{}, err
 	}
-	return public.JobSnapshot{JobID: job.JobID, UserID: job.UserID, Status: string(job.Status), RetryCount: int(job.CurrentAttempt)}, nil
+	return public.JobSnapshot{JobID: job.JobID, UserID: job.UserID, Status: string(job.Status), RetryCount: int(job.CurrentAttempt), CreatedAt: job.CreatedAt}, nil
 }
 
 func (u *JobUsecase) PendingOrphans(ctx context.Context, before time.Time, limit int) ([]public.JobSnapshot, error) {

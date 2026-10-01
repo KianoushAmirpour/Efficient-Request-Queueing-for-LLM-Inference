@@ -79,7 +79,7 @@ func (r *JobRepository) PayloadByID(ctx context.Context, jobID string) (*domain.
 func (r *JobRepository) JobByID(ctx context.Context, jobID string) (*domain.Job, error) {
 	db := postgres.ExtractDB(ctx, r.Db)
 	query := `
-		SELECT job_id, user_id, status, retry_counts
+		SELECT job_id, user_id, status, retry_counts, created_at
 		FROM jobs
 		WHERE job_id = $1
 	`
@@ -89,6 +89,7 @@ func (r *JobRepository) JobByID(ctx context.Context, jobID string) (*domain.Job,
 		&job.UserID,
 		&job.Status,
 		&job.CurrentAttempt,
+		&job.CreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
