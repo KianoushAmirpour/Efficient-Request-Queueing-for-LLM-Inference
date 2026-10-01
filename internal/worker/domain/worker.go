@@ -69,3 +69,14 @@ type Queue interface {
 type IdempotencyStatusUpdater interface {
 	TransitionStatus(ctx context.Context, userID, jobID, status string) error
 }
+
+type MetricsRecorder interface {
+	JobStarted()
+	JobEnded()
+	JobCompleted()
+	JobFailed()
+	JobRetriedModelFailure()
+	JobRetriedLeaseExpired()
+	ObserveJobProcessingSuccess(time.Duration)
+	ObserveJobProcessingFailure(time.Duration)
+}

@@ -31,6 +31,7 @@ type workerPool struct {
 	streamPublisher    domain.StreamPublisher
 	queueService       domain.Queue
 	idempotencyUpdater domain.IdempotencyStatusUpdater
+	metrics            domain.MetricsRecorder
 	logger             *slog.Logger
 
 	wg     sync.WaitGroup
@@ -48,6 +49,7 @@ func NewWorkerPool(
 	streamPublisher domain.StreamPublisher,
 	queueService domain.Queue,
 	idempotencyUpdater domain.IdempotencyStatusUpdater,
+	metrics domain.MetricsRecorder,
 	logger *slog.Logger,
 ) (public.WorkerPool, error) {
 	if workerCfg == nil {
@@ -92,6 +94,7 @@ func NewWorkerPool(
 		streamPublisher:    streamPublisher,
 		queueService:       queueService,
 		idempotencyUpdater: idempotencyUpdater,
+		metrics:            metrics,
 		logger:             logger}, nil
 }
 
@@ -208,8 +211,7 @@ func (w *workerPool) runWorker(ctx context.Context, workerID int) {
 	}
 }
 
-func (w *workerPool) processJob(ctx context.Context, workerID int) error {
-
+func (w *workerPool) processJob(ctx context.Context, workerID int) (resultErr error) {
 	claim, err := w.jobClaimer.ClaimNextJob(ctx, workerID)
 	if err != nil {
 		return err
@@ -217,6 +219,19 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 
 	if claim == nil {
 		return domain.ErrNoJobAvailable
+	}
+	jobStarted := time.Now()
+	if w.metrics != nil {
+		w.metrics.JobStarted()
+		defer func() {
+			w.metrics.JobEnded()
+			duration := time.Since(jobStarted)
+			if resultErr != nil {
+				w.metrics.ObserveJobProcessingFailure(duration)
+				return
+			}
+			w.metrics.ObserveJobProcessingSuccess(duration)
+		}()
 	}
 
 	jobCtx, jobCancel := context.WithCancelCause(context.Background())
@@ -344,6 +359,9 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		stopHeartbeatAndWait()
 
 		if cause := context.Cause(jobCtx); errors.Is(cause, domain.ErrLeaseExtendFailed) {
+			if w.metrics != nil {
+				w.metrics.JobRetriedLeaseExpired()
+			}
 			w.logger.ErrorContext(
 				jobCtx,
 				"aborted: processing lease lost; skipping cleanup to avoid clobbering the new owner",
@@ -400,6 +418,9 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 			}
 
 			if event.WillRetry {
+				if w.metrics != nil {
+					w.metrics.JobRetriedModelFailure()
+				}
 				if w.streamPublisher != nil {
 					message := fmt.Sprintf(
 						`{"attempt":%d,"max_attempts":%d,"message":"The inference service is temporarily unavailable. Retrying..."}`,
@@ -475,8 +496,9 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 				"job.id", claim.JobID,
 				"error", markErr,
 			)
+		} else if w.metrics != nil {
+			w.metrics.JobFailed()
 		}
-
 		if err := w.idempotencyUpdater.TransitionStatus(cleanupCtx, claim.UserID, claim.JobID, "failed"); err != nil {
 			w.logger.ErrorContext(jobCtx, "failed to mark idempotency as failed", "worker.id", workerID, "job.id", claim.JobID, "error", err)
 		}
@@ -530,6 +552,9 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 		_ = w.queueService.Release(onSuccessCleanupCtx, claim.JobID)
 		return err
 	}
+	if w.metrics != nil {
+		w.metrics.JobCompleted()
+	}
 
 	stopHeartbeatAndWait()
 
@@ -552,7 +577,6 @@ func (w *workerPool) processJob(ctx context.Context, workerID int) error {
 			"error", err,
 		)
 	}
-
 	w.logger.InfoContext(onSuccessCleanupCtx, "completed job", "worker.id", workerID, "job.id", claim.JobID)
 	return nil
 }

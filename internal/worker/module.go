@@ -18,6 +18,7 @@ type WorkerDeps struct {
 	StreamPublisher    domain.StreamPublisher
 	QueueService       domain.Queue
 	IdempotencyUpdater domain.IdempotencyStatusUpdater
+	Metrics            domain.MetricsRecorder
 }
 
 type WorkerConfig = config.WorkerConfig
@@ -61,6 +62,7 @@ func NewWorkerModule(
 		deps.StreamPublisher,
 		deps.QueueService,
 		deps.IdempotencyUpdater,
+		deps.Metrics,
 		logger,
 	)
 	if err != nil {
