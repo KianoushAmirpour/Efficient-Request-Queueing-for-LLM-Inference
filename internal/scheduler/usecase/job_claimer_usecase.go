@@ -12,11 +12,13 @@ const ErrTypeScheduler = "SCHEDULER_FAILED"
 
 type JobClaimerUseCase struct {
 	NextJobClaimerService domain.JobQueue
+	metrics               domain.MetricsRecorder
 }
 
-func NewJobClaimerUseCase(nextJobClaimer domain.JobQueue) public.JobClaimer {
+func NewJobClaimerUseCase(nextJobClaimer domain.JobQueue, metrics domain.MetricsRecorder) public.JobClaimer {
 	return &JobClaimerUseCase{
 		NextJobClaimerService: nextJobClaimer,
+		metrics:               metrics,
 	}
 }
 
@@ -25,8 +27,13 @@ func (d *JobClaimerUseCase) NextJob(ctx context.Context, workerID int) (*public.
 	if err != nil {
 		return nil, sharederr.EnsureAppError(err, public.ErrCodeJobClaimerFailed, ErrTypeScheduler)
 	}
+	if dequeueResult != nil {
+		if dequeueResult.JobID != "" {
+			d.metrics.ObserveQueueWaitDuration(dequeueResult.QueueWait)
+		}
+	}
 
-	if dequeueResult == nil {
+	if dequeueResult == nil || dequeueResult.JobID == "" {
 		return nil, nil
 	}
 

@@ -16,6 +16,7 @@ type EnqueueResult struct {
 }
 
 type FairDequeueResult struct {
-	UserID string
-	JobID  string
+	UserID    string
+	JobID     string
+	QueueWait time.Duration
 }

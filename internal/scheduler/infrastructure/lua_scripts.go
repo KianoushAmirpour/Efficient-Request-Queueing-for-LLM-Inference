@@ -20,10 +20,13 @@ return 1
 -- KEYS[1]: sorted set key for processing jobs
 -- ARGV[1]: job ID
 -- ARGV[2]: cutoff timestamp in milliseconds
+-- KEYS[2]: queued enqueue timestamps hash
 
 local score = redis.call("ZSCORE", KEYS[1], ARGV[1])
 if not score or tonumber(score) > tonumber(ARGV[2]) then return 0 end
-return redis.call("ZREM", KEYS[1], ARGV[1])
+local removed = redis.call("ZREM", KEYS[1], ARGV[1])
+if removed == 1 then redis.call("HDEL", KEYS[2], ARGV[1]) end
+return removed
 `)
 
 	requeueExpiredScript = redis.NewScript(`
@@ -58,6 +61,7 @@ return 1
 -- KEYS[1]: sorted set key for active users
 -- KEYS[2]: sorted set key for processing jobs
 -- KEYS[3]: rotation sequence key
+-- KEYS[4]: hash of queued job enqueue timestamps
 -- ARGV[1]: lease duration in milliseconds
 
 if redis.call("ZCARD", KEYS[1]) == 0 then
@@ -73,6 +77,11 @@ if not job then
     return nil
 end
 
+local t = redis.call("TIME")
+local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
+local enqueuedAt = tonumber(redis.call("HGET", KEYS[4], job) or now)
+redis.call("HDEL", KEYS[4], job)
+
 local remaining = redis.call("LLEN", "queue:user:" .. user)
 
 if remaining > 0 then
@@ -84,12 +93,10 @@ else
     redis.call("ZREM", KEYS[1], user)
 end
 -- Track job in single sorted set using a lease deadline.
-local t = redis.call("TIME")
-local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
 local lease_deadline = now + tonumber(ARGV[1])
 redis.call("ZADD", KEYS[2], lease_deadline, job)
 
-return {user, job}
+return {user, job, math.max(0, now - enqueuedAt)}
 	`)
 
 	enqueueScript = redis.NewScript(`
@@ -97,6 +104,7 @@ return {user, job}
 -- KEYS[2] = user queue key
 -- KEYS[3] = active user set
 -- KEYS[4] = rotation sequence key
+-- KEYS[5] = hash of queued job enqueue timestamps
 
 -- ARGV[1] = job id
 -- ARGV[2] = idempotency ttl
@@ -115,7 +123,11 @@ if not created then
     return { 1 } -- duplicate job
 end
 
+local t = redis.call("TIME")
+local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
+
 redis.call("LPUSH", KEYS[2], ARGV[1])
+redis.call("HSET", KEYS[5], ARGV[1], now)
 
 if queueLength == 0 then
 
@@ -135,6 +147,7 @@ return { 3 } -- job enqueued successfully but not active
 -- KEYS[3]: user-specific queue (List)
 -- KEYS[4]: active users set (Sorted Set)
 -- KEYS[5]: rotation sequence key
+-- KEYS[6] = hash of queued job enqueue timestamps
 -- ARGV[1]: job ID
 -- ARGV[2]: user ID
 -- ARGV[3]: max queue capacity per user
@@ -147,6 +160,9 @@ if redis.call("LLEN", KEYS[3]) >= tonumber(ARGV[3]) then return 2 end -- Queue f
 
 local wasEmpty = redis.call("LLEN", KEYS[3]) == 0
 redis.call("LPUSH", KEYS[3], ARGV[1])
+local t = redis.call("TIME")
+local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
+redis.call("HSET", KEYS[6], ARGV[1], now)
 
 if wasEmpty then
     local seq = redis.call("INCR", KEYS[5])

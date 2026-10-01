@@ -19,6 +19,7 @@ const (
 	processingJobsKey    = "processing_jobs"
 	completedJobsKey     = "completed_jobs"
 	rotationSequenceKey  = "scheduler:rotation_seq"
+	queueEnqueuedAtKey   = "scheduler:queue_enqueued_at"
 )
 
 func buildQueuePerUserKey(userID string) string {
@@ -47,7 +48,7 @@ func (r *RedisSchedulerRepository) ClaimNextJob(ctx context.Context, workerID in
 	val, err := fairDequeueScript.Run(
 		ctx,
 		r.client,
-		[]string{activeUsersKey, processingJobsKey, rotationSequenceKey},
+		[]string{activeUsersKey, processingJobsKey, rotationSequenceKey, queueEnqueuedAtKey},
 		r.lease.Milliseconds()).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -61,13 +62,14 @@ func (r *RedisSchedulerRepository) ClaimNextJob(ctx context.Context, workerID in
 	}
 
 	arr, ok := val.([]interface{})
-	if !ok || len(arr) != 2 {
+	if !ok || len(arr) != 3 {
 		return nil, fmt.Errorf("fair dequeue: unexpected result type %T", val)
 	}
 
 	userID, ok1 := arr[0].(string)
 	jobID, ok2 := arr[1].(string)
-	if !ok1 || !ok2 {
+	waitMillis, ok3 := redisInt64(arr[2])
+	if !ok1 || !ok2 || !ok3 {
 		return nil, fmt.Errorf("fair dequeue: non-string elements in result")
 	}
 
@@ -76,8 +78,10 @@ func (r *RedisSchedulerRepository) ClaimNextJob(ctx context.Context, workerID in
 	}
 
 	return &domain.FairDequeueResult{
-		UserID: userID,
-		JobID:  jobID}, nil
+		UserID:    userID,
+		JobID:     jobID,
+		QueueWait: time.Duration(waitMillis) * time.Millisecond,
+	}, nil
 
 }
 
@@ -89,7 +93,7 @@ func (r *RedisSchedulerRepository) PushLeft(ctx context.Context, entry domain.Qu
 	result, err := enqueueScript.Run(
 		ctx,
 		r.client,
-		[]string{idempotentKey, userQueueKey, activeUsersKey, rotationSequenceKey},
+		[]string{idempotentKey, userQueueKey, activeUsersKey, rotationSequenceKey, queueEnqueuedAtKey},
 		entry.JobID,
 		int(r.config.IdempotencyKeyTTL.Seconds()),
 		r.config.QueueCapacity,
@@ -103,7 +107,7 @@ func (r *RedisSchedulerRepository) PushLeft(ctx context.Context, entry domain.Qu
 		return nil, fmt.Errorf("unexpected result format from redis enqueue script: got %T", result)
 	}
 
-	decision, ok := resultArray[0].(int64)
+	decision, ok := redisInt64(resultArray[0])
 	if !ok {
 		return nil, fmt.Errorf("unexpected success value type from redis enqueue script: got %T", resultArray[0])
 	}
@@ -125,6 +129,21 @@ func (r *RedisSchedulerRepository) PushLeft(ctx context.Context, entry domain.Qu
 
 	return nil, fmt.Errorf("unexpected result from redis enqueue script: %v", decision)
 
+}
+
+func redisInt64(value interface{}) (int64, bool) {
+	switch n := value.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case string:
+		var parsed int64
+		_, err := fmt.Sscan(n, &parsed)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }
 
 func (r *RedisSchedulerRepository) ReleaseProcessingJob(ctx context.Context, jobID string) error {
@@ -176,7 +195,7 @@ func (r *RedisSchedulerRepository) ExpiredJobIDs(ctx context.Context, cutoffMs i
 }
 
 func (r *RedisSchedulerRepository) RemoveIfExpired(ctx context.Context, jobID string, cutoffMs int64) (bool, error) {
-	n, err := removeExpiredScript.Run(ctx, r.client, []string{processingJobsKey}, jobID, cutoffMs).Int()
+	n, err := removeExpiredScript.Run(ctx, r.client, []string{processingJobsKey, queueEnqueuedAtKey}, jobID, cutoffMs).Int()
 	if err != nil {
 		return false, fmt.Errorf("remove expired processing job: %w", err)
 	}
@@ -216,7 +235,7 @@ func (r *RedisSchedulerRepository) EnqueueIfAbsent(ctx context.Context, jobID, u
 	result, err := enqueueOrphanScript.Run(
 		ctx,
 		r.client,
-		[]string{completedJobsKey, processingJobsKey, buildQueuePerUserKey(userID), activeUsersKey, rotationSequenceKey},
+		[]string{completedJobsKey, processingJobsKey, buildQueuePerUserKey(userID), activeUsersKey, rotationSequenceKey, queueEnqueuedAtKey},
 		jobID,
 		userID,
 		capacity).Int()

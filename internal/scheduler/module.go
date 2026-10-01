@@ -7,6 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"efficient-request-queueing-for-llm-inference/internal/scheduler/domain"
 	infrastructure "efficient-request-queueing-for-llm-inference/internal/scheduler/infrastructure"
 	schedulerConfig "efficient-request-queueing-for-llm-inference/internal/scheduler/infrastructure/config"
 	"efficient-request-queueing-for-llm-inference/internal/scheduler/public"
@@ -16,6 +17,7 @@ import (
 type SchedulerDeps struct {
 	RedisClient  *redis.Client
 	LeaseTimeout time.Duration
+	Metrics      domain.MetricsRecorder
 }
 
 type SchedulerConfig = schedulerConfig.SchedulerConfig
@@ -49,7 +51,7 @@ func NewSchedulerModule(
 
 	schedulerRepo := infrastructure.NewRedisSchedulerRepository(deps.RedisClient, deps.LeaseTimeout, cfg)
 	queueUsecase := usecase.NewQueueService(schedulerRepo)
-	jobClaimerUseCase := usecase.NewJobClaimerUseCase(schedulerRepo)
+	jobClaimerUseCase := usecase.NewJobClaimerUseCase(schedulerRepo, deps.Metrics)
 
 	return &Module{
 		QueueService:      queueUsecase,
