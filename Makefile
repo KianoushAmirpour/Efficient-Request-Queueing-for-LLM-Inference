@@ -14,7 +14,10 @@ DOCKER_COMPOSE_FILE := infra/docker-compose.yml
 
 # Database configuration
 
-DB_DSN := postgres://$(MIGRATION_USER):$(MIGRATION_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=$(POSTGRES_SSLMODE)
+DB_HOST ?= $(POSTGRES_HOST)
+DB_PORT ?= 5432
+POSTGRES_SSLMODE ?= disable
+DB_DSN := postgres://$(MIGRATION_USER):$(MIGRATION_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(POSTGRES_DB)?sslmode=$(POSTGRES_SSLMODE)
 MIGRATIONS_DIR := ./migrations
 
 # Phony targets
@@ -24,7 +27,8 @@ MIGRATIONS_DIR := ./migrations
 	test_all test_unit test_admission test_scheduler \
 	test_integration test_integration_all test_integration_stress \
 	test_admission_integration test_scheduler_integration \
-	test_job test_recovery test_worker test_concurrency
+	test_job test_recovery test_worker test_concurrency \
+	mock_users mock_users_cleanup
 
 # ---------------------------------------------------------------------------
 # Local development
@@ -70,7 +74,7 @@ migrate_down: ## Roll back the latest database migration
 # ---------------------------------------------------------------------------
 
 lint: ## Run the Go linter
-	golangci-lint run ./...
+	golangci-lint run ./... --fix
 
 # ---------------------------------------------------------------------------
 # Tests
