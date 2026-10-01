@@ -11,6 +11,8 @@ services:
     environment:
       CFG_PATH: /app/configs
       GIN_MODE: release
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis-stack
     ports:
       - "8080:8080"
     depends_on:
@@ -59,7 +61,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./pg_db/scripts:/docker-entrypoint-initdb.d
-
+    ports:
+      - "5432:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -91,6 +94,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
     restart: unless-stopped

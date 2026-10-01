@@ -7,7 +7,8 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
+  # The application is run on the host, not in this Compose stack.
   - job_name: "app"
     metrics_path: /metrics
     static_configs:
-      - targets: ["app:8080"]
+      - targets: ["host.docker.internal:8080"]

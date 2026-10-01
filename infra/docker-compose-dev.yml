@@ -10,7 +10,7 @@ services:
       - "6379:6379"
       - "8001:8001"
     volumes:
-      - redis_data:/data
+      - redis_data_dev:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -21,7 +21,7 @@ services:
       - internal
 
   postgres:
-    image: docker.arvancloud.ir/postgres:17
+    image: postgres:17
     container_name: postgres_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -31,7 +31,7 @@ services:
       MIGRATION_PASSWORD: ${MIGRATION_PASSWORD}
       APP_PASSWORD: ${APP_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_dev:/var/lib/postgresql/data
       - ./pg_db/scripts:/docker-entrypoint-initdb.d
     restart: unless-stopped
     ports:
@@ -50,8 +50,8 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
+      - ./prometheus/prometheus-dev.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data_dev:/prometheus
     restart: unless-stopped
     networks:
       - internal
@@ -65,9 +65,43 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
     volumes:
-      - grafana_data:/var/lib/grafana
+      - grafana_data_dev:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
+    restart: unless-stopped
+    networks:
+      - internal
+  
+  victorialogs:
+    image: victoriametrics/victoria-logs:v1.42.0
+    container_name: victorialogs
+    command:
+      - "-storageDataPath=/victoria-logs-data"
+      - "-retentionPeriod=14d"
+    ports:
+      - "9428:9428"
+    volumes:
+      - victorialogs_data_dev:/victoria-logs-data
+    restart: unless-stopped
+    networks:
+      - internal
+
+  vector:
+    image: timberio/vector:0.50.0-debian
+    container_name: vector
+    command:
+      - "--config"
+      - "/etc/vector/vector.yaml"
+    volumes:
+      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - vector_data_dev:/var/lib/vector
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    depends_on:
+      - victorialogs
+
     restart: unless-stopped
     networks:
       - internal
@@ -77,9 +111,9 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
-  redis_data:
-  prometheus_data:
-  grafana_data:
-  victorialogs_data:
-  vector_data:
+  postgres_data_dev:
+  redis_data_dev:
+  prometheus_data_dev:
+  grafana_data_dev:
+  victorialogs_data_dev:
+  vector_data_dev:
