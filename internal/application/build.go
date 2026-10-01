@@ -76,5 +76,6 @@ func BuildApplication(rootctx context.Context) (*Application, error) {
 		pgPool,
 		redisClient,
 		*appCfg.ServerCfg,
+		moduleRegistry.HttpMetricRecorder,
 	), nil
 }

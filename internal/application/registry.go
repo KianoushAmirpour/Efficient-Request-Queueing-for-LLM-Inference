@@ -7,14 +7,33 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
+
+	metricsPublicAPI "efficient-request-queueing-for-llm-inference/internal/observability/metrics/public"
 )
 
 type Registry struct {
-	modules []Module
+	modules            []Module
+	HttpMetricRecorder metricsPublicAPI.HTTPMetricsRecorder
 }
 
 func (r *Registry) Register(m ...Module) {
 	r.modules = append(r.modules, m...)
+}
+
+func (r *Registry) RegisterStartUpMetrics(metrics metricsPublicAPI.HTTPMetricsRecorder) {
+	r.HttpMetricRecorder = metrics
+}
+
+func (r *Registry) RegisterRootRoutes(ctx context.Context, rg *gin.RouterGroup, logger *slog.Logger) error {
+	for _, m := range r.modules {
+		if h, ok := m.(RootHttpModule); ok {
+			if err := h.RegisterRootRoutes(rg); err != nil {
+				logger.ErrorContext(ctx, "failed to register root routes", "module", m.Name(), "error", err)
+				return fmt.Errorf("register root routes %s: %w", m.Name(), err)
+			}
+		}
+	}
+	return nil
 }
 
 func (r *Registry) RegisterRoutes(ctx context.Context, rg *gin.RouterGroup, logger *slog.Logger) error {

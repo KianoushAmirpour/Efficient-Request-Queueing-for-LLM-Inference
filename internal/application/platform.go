@@ -15,6 +15,11 @@ type HttpModule interface {
 	RegisterRoutes(rg *gin.RouterGroup) error
 }
 
+type RootHttpModule interface {
+	Module
+	RegisterRootRoutes(rg *gin.RouterGroup) error
+}
+
 type StartableModule interface {
 	Module
 	Start(ctx context.Context) error

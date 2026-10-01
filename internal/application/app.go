@@ -14,17 +14,19 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	infraredis "efficient-request-queueing-for-llm-inference/infra/redis"
+	metricsPublicAPI "efficient-request-queueing-for-llm-inference/internal/observability/metrics/public"
 	sharederr "efficient-request-queueing-for-llm-inference/internal/shared/errors"
 	"efficient-request-queueing-for-llm-inference/internal/shared/middleware"
 )
 
 type Application struct {
-	registry    *Registry
-	engine      *gin.Engine
-	logger      *slog.Logger
-	pgPool      *pgxpool.Pool
-	redisClient *redis.Client
-	ServerCfg   ServerConfig
+	registry           *Registry
+	engine             *gin.Engine
+	logger             *slog.Logger
+	pgPool             *pgxpool.Pool
+	redisClient        *redis.Client
+	ServerCfg          ServerConfig
+	HttpMetricRecorder metricsPublicAPI.HTTPMetricsRecorder
 }
 
 func NewApplication(
@@ -33,20 +35,26 @@ func NewApplication(
 	logger *slog.Logger,
 	pgPool *pgxpool.Pool,
 	redisClient *redis.Client,
-	serverCfg ServerConfig) *Application {
+	serverCfg ServerConfig,
+	httpMetricRecorder metricsPublicAPI.HTTPMetricsRecorder) *Application {
 	return &Application{
-		registry:    registry,
-		engine:      engine,
-		logger:      logger,
-		pgPool:      pgPool,
-		redisClient: redisClient,
-		ServerCfg:   serverCfg,
+		registry:           registry,
+		engine:             engine,
+		logger:             logger,
+		pgPool:             pgPool,
+		redisClient:        redisClient,
+		ServerCfg:          serverCfg,
+		HttpMetricRecorder: httpMetricRecorder,
 	}
 }
 
 func (app *Application) Run(ctx context.Context) error {
+	if err := app.registry.RegisterRootRoutes(ctx, app.engine.Group(""), app.logger); err != nil {
+		return err
+	}
 	api := app.engine.Group("/api")
 	api.Use(
+		middleware.MetricsMiddleware(app.HttpMetricRecorder),
 		middleware.RecoveryMiddleware(app.logger),
 		middleware.RequestContextMiddleware(app.logger),
 	)

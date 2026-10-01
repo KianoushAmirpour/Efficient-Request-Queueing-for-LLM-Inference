@@ -15,6 +15,7 @@ import (
 	inferenceCfg "efficient-request-queueing-for-llm-inference/internal/inference/infrastructure/config"
 	inferenceServerCfg "efficient-request-queueing-for-llm-inference/internal/inference_server/infrastructure/config"
 	jobCfg "efficient-request-queueing-for-llm-inference/internal/job/infrastructure/config"
+	metricCfg "efficient-request-queueing-for-llm-inference/internal/observability/metrics/infrastructure/config"
 	recoveryCfg "efficient-request-queueing-for-llm-inference/internal/recovery/infrastructure/config"
 	schedulerCfg "efficient-request-queueing-for-llm-inference/internal/scheduler/infrastructure/config"
 	workerCfg "efficient-request-queueing-for-llm-inference/internal/worker/infrastructure/config"
@@ -47,6 +48,7 @@ type AppConfig struct {
 	InferenceCfg       *inferenceCfg.Config
 	RecoveryCfg        *recoveryCfg.RecoveryConfig
 	InferenceServerCfg *inferenceServerCfg.Config
+	MetricsCfg         *metricCfg.MetricsConfig
 }
 
 func newLoaderFromEnv() (*config.Loader, error) {
@@ -83,10 +85,16 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 	}
 	pgCfg.Password = os.Getenv("POSTGRES_PASSWORD")
 	pgCfg.User = os.Getenv("POSTGRES_USER")
+	if host := os.Getenv("POSTGRES_HOST"); host != "" {
+		pgCfg.Database.Host = host
+	}
 
 	rdsCfg, err := config.LoadInto[redis.RedisConfig](loader, "redis.yml")
 	if err != nil {
 		return AppConfig{}, err
+	}
+	if host := os.Getenv("REDIS_HOST"); host != "" {
+		rdsCfg.Database.Host = host
 	}
 
 	admCfg, err := config.LoadInto[admissionCfg.AdmissionConfig](loader, "admission.yml")
@@ -135,6 +143,11 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 	}
 	inferenceEngineCfg.InferenceServer.APIKey = os.Getenv("OPENAI_API")
 
+	metricsConfig, err := config.LoadInto[metricCfg.Config](loader, "metrics.yml")
+	if err != nil {
+		return AppConfig{}, err
+	}
+
 	return AppConfig{
 		PostgresCfg:        pgCfg,
 		RedisCfg:           rdsCfg,
@@ -147,6 +160,7 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 		InferenceCfg:       inferenceConfig,
 		RecoveryCfg:        recoveryConfig,
 		InferenceServerCfg: inferenceEngineCfg,
+		MetricsCfg:         &metricsConfig.Metrics,
 	}, nil
 }
 

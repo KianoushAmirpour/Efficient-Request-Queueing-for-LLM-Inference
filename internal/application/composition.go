@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -15,11 +16,14 @@ import (
 	"efficient-request-queueing-for-llm-inference/internal/inference"
 	inferenceAdapters "efficient-request-queueing-for-llm-inference/internal/inference/adapters"
 	inferenceserver "efficient-request-queueing-for-llm-inference/internal/inference_server"
+	inferenceServerAdapters "efficient-request-queueing-for-llm-inference/internal/inference_server/adapters"
 	"efficient-request-queueing-for-llm-inference/internal/job"
 	jobAdapters "efficient-request-queueing-for-llm-inference/internal/job/adapters"
+	"efficient-request-queueing-for-llm-inference/internal/observability/metrics"
 	"efficient-request-queueing-for-llm-inference/internal/recovery"
 	recoveryAdapters "efficient-request-queueing-for-llm-inference/internal/recovery/adapters"
 	"efficient-request-queueing-for-llm-inference/internal/scheduler"
+	schedulerAdapters "efficient-request-queueing-for-llm-inference/internal/scheduler/adapters"
 	"efficient-request-queueing-for-llm-inference/internal/stream"
 	streamAdapters "efficient-request-queueing-for-llm-inference/internal/stream/adapters"
 	"efficient-request-queueing-for-llm-inference/internal/user"
@@ -34,6 +38,20 @@ func composeModules(
 	appCfg AppConfig,
 	logger *slog.Logger,
 ) (*Registry, error) {
+	if appCfg.MetricsCfg == nil {
+		return nil, fmt.Errorf("metrics configuration must not be nil")
+	}
+	metricsModule, err := metrics.NewMetricsModule(
+		metrics.MetricsDeps{},
+		metrics.MetricsConfig{
+			Namespace: appCfg.MetricsCfg.Namespace,
+		},
+		logger,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	userModule, err := user.NewUserModule(
 		user.UserDeps{
 			PGPool:      pgPool,
@@ -66,11 +84,13 @@ func composeModules(
 	}
 
 	userAdmAdapter := admissionAdapters.NewUserPolicyAdapter(userModule.UserService)
+	admissionMetricsAdapter := admissionAdapters.NewMetricsAdapter(metricsModule.AdmissionMetrics)
 
 	admissionModule, err := admission.NewAdmissionModule(
 		admission.AdmissionDeps{
 			RedisClient:      redisClient,
 			UserPolicyReader: userAdmAdapter,
+			Metrics:          admissionMetricsAdapter,
 		},
 		*appCfg.AdmissionCfg,
 		logger,
@@ -99,6 +119,7 @@ func composeModules(
 		scheduler.SchedulerDeps{
 			RedisClient:  redisClient,
 			LeaseTimeout: appCfg.WorkerCfg.Worker.LeaseTimeout,
+			Metrics:      schedulerAdapters.NewMetricsAdapter(metricsModule.SchedulerMetrics),
 		},
 		appCfg.SchedulerCfg.Scheduler,
 		logger,
@@ -115,6 +136,7 @@ func composeModules(
 			AdmissionService:       admissionAdapter,
 			JobService:             jobAdapter,
 			QueueService:           queueServiceAdapter,
+			Metrics:                inferenceAdapters.NewMetricsAdapter(metricsModule.WorkloadMetrics),
 		},
 		appCfg.InferenceCfg.Inference,
 		logger,
@@ -124,7 +146,7 @@ func composeModules(
 	}
 
 	inferenceEngineModule, err := inferenceserver.NewInferenceEngineModule(
-		inferenceserver.InferenceEngineDeps{},
+		inferenceserver.InferenceEngineDeps{Metrics: inferenceServerAdapters.NewMetricsAdapter(metricsModule.LLMMetrics)},
 		appCfg.InferenceServerCfg.InferenceServer,
 		logger,
 	)
@@ -135,11 +157,14 @@ func composeModules(
 	jobClaimerAdapter := workerAdapters.NewJobClaimerAdapter(schedulerModule.JobClaimerService)
 	jobRepoAdapter := workerAdapters.NewJobRepositoryAdapter(jobModule.JobCreator)
 	inferenceAdapter := workerAdapters.NewInferenceEngineAdapter(inferenceEngineModule.InferenceEngine)
+	streamMetricsAdapter := streamAdapters.NewMetricsAdapter(metricsModule.StreamMetrics, jobModule.JobReader)
 
 	streamModule, err := stream.NewStreamModule(
 		stream.StreamDeps{
 			RedisClient:            redisClient,
 			TokenValidationService: streamTokenAdapter,
+			Metrics:                streamMetricsAdapter,
+			JobAcceptedAtReader:    streamMetricsAdapter,
 		},
 		stream.StreamConfig{},
 		logger,
@@ -157,6 +182,7 @@ func composeModules(
 		Policies:    jobRecoveryAdapter,
 		Idempotency: idempotencyAdapter,
 		Events:      recoveryAdapters.NewEventsAdapter(streamModule.Publisher()),
+		Metrics:     recoveryAdapters.NewMetricsAdapter(metricsModule.RecoveryMetrics, metricsModule.RecoveryRetryMetrics, metricsModule.JobTerminalMetrics),
 	}, *appCfg.RecoveryCfg, logger)
 	if err != nil {
 		return nil, err
@@ -174,6 +200,7 @@ func composeModules(
 			StreamPublisher:    streamPublisherAdapter,
 			QueueService:       queueAdapter,
 			IdempotencyUpdater: idempotencyStatusAdapter,
+			Metrics:            workerAdapters.NewMetricsAdapter(metricsModule.WorkerMetrics, metricsModule.JobRetryMetrics, metricsModule.JobTerminalMetrics),
 		},
 		appCfg.WorkerCfg.Worker,
 		logger,
@@ -192,7 +219,6 @@ func composeModules(
 	if err != nil {
 		return nil, err
 	}
-
 	moduleRegistry := &Registry{}
 	moduleRegistry.Register(
 		userModule,
@@ -205,7 +231,9 @@ func composeModules(
 		workerModule,
 		recoveryModule,
 		healthCheckerModule,
+		metricsModule,
 	)
+	moduleRegistry.RegisterStartUpMetrics(metricsModule.HTTPMetrics)
 
 	return moduleRegistry, nil
 }
