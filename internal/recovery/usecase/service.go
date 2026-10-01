@@ -26,6 +26,7 @@ type RecoveryService struct {
 	orphanGrace   time.Duration
 	queueCapacity int
 	logger        *slog.Logger
+	metrics       domain.MetricsRecorder
 	mu            sync.Mutex
 	stop          context.CancelFunc
 }
@@ -41,7 +42,9 @@ func NewRecoveryService(
 	batch int,
 	orphanGrace time.Duration,
 	queueCapacity int,
-	logger *slog.Logger) *RecoveryService {
+	logger *slog.Logger,
+	metrics domain.MetricsRecorder) *RecoveryService {
+
 	return &RecoveryService{
 		queue:         queue,
 		jobs:          jobs,
@@ -53,10 +56,11 @@ func NewRecoveryService(
 		batch:         batch,
 		orphanGrace:   orphanGrace,
 		queueCapacity: queueCapacity,
-		logger:        logger}
+		logger:        logger,
+		metrics:       metrics}
 }
 
-func (s *RecoveryService) ReconcileCompleted(ctx context.Context) error {
+func (s *RecoveryService) ReconcileCompleted(ctx context.Context) (err error) {
 	ids, err := s.queue.CompletedJobIDs(ctx)
 	if err != nil {
 		return sharederr.EnsureAppError(err, recoveryErr.ErrCodeReconcileFailed, ErrTypeRecovery)
@@ -75,6 +79,7 @@ func (s *RecoveryService) ReconcileCompleted(ctx context.Context) error {
 				s.logger.WarnContext(ctx, "failed to mark the job as completed in recovery phase", "job.id", id, "error", err)
 				continue
 			}
+			s.metrics.JobCompleted()
 		}
 		if _, err := s.idempotency.TransitionStatus(ctx, id, "completed"); err != nil {
 			s.logger.WarnContext(ctx, "failed to update idempotency status in recovery phase", "job.id", id, "error", err)
@@ -90,7 +95,7 @@ func (s *RecoveryService) ReconcileCompleted(ctx context.Context) error {
 	return nil
 }
 
-func (s *RecoveryService) SweepOrphans(ctx context.Context) error {
+func (s *RecoveryService) SweepOrphans(ctx context.Context) (err error) {
 	if s.orphanGrace <= 0 {
 		s.orphanGrace = 5 * s.interval
 	}
@@ -108,13 +113,14 @@ func (s *RecoveryService) SweepOrphans(ctx context.Context) error {
 			continue
 		}
 		if queued {
+			s.metrics.JobRequeued()
 			s.logger.InfoContext(ctx, "orphan job re-enqueued", "job.id", job.JobID)
 		}
 	}
 	return nil
 }
 
-func (s *RecoveryService) Sweep(ctx context.Context) error {
+func (s *RecoveryService) Sweep(ctx context.Context) (err error) {
 	now := time.Now().UnixMilli()
 	ids, err := s.queue.ExpiredJobIDs(ctx, now, s.batch)
 	if err != nil {
@@ -161,10 +167,14 @@ func (s *RecoveryService) recoverOne(ctx context.Context, id string, cutoff int6
 		if err = s.statuses.MarkFailed(ctx, id, next); err != nil {
 			return sharederr.NewAppError(recoveryErr.ErrCodeJobStatusUpdateFailed, ErrTypeRecovery, err)
 		}
+		s.metrics.JobFailed()
 		if _, err = s.idempotency.TransitionStatus(ctx, id, "failed"); err != nil {
 			return sharederr.NewAppError(recoveryErr.ErrCodeIdempotencyUpdateFailed, ErrTypeRecovery, err)
 		}
-		return sharederr.EnsureAppError(s.events.PublishEvent(ctx, id, "failed", "recovery retry limit exceeded"), recoveryErr.ErrCodeEventPublishFailed, ErrTypeRecovery)
+		if err := s.events.PublishEvent(ctx, id, "failed", "recovery retry limit exceeded"); err != nil {
+			return sharederr.EnsureAppError(err, recoveryErr.ErrCodeEventPublishFailed, ErrTypeRecovery)
+		}
+		return nil
 	}
 	next = job.RetryCount + 1
 	claimed, err := s.queue.RequeueIfExpired(ctx, id, job.UserID, cutoff)
@@ -178,6 +188,8 @@ func (s *RecoveryService) recoverOne(ctx context.Context, id string, cutoff int6
 	if _, err := s.statuses.UpdateCreated(ctx, id, next); err != nil {
 		return sharederr.EnsureAppError(err, recoveryErr.ErrCodeJobStatusUpdateFailed, ErrTypeRecovery)
 	}
+	s.metrics.JobRequeued()
+	s.metrics.JobRetried()
 	return nil
 }
 

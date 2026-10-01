@@ -19,6 +19,7 @@ type RecoveryDeps struct {
 	Policies    domain.Policies
 	Idempotency domain.IdempotencyFailure
 	Events      domain.Events
+	Metrics     domain.MetricsRecorder
 }
 
 func NewRecoveryModule(deps RecoveryDeps, cfg recoveryConfig.RecoveryConfig, logger *slog.Logger) (*Module, error) {
@@ -68,6 +69,7 @@ func NewRecoveryModule(deps RecoveryDeps, cfg recoveryConfig.RecoveryConfig, log
 		cfg.OrphanGrace,
 		cfg.QueueCapacity,
 		logger,
+		deps.Metrics,
 	)}, nil
 }
 func (m *Module) Name() string                    { return "Recovery" }
