@@ -17,6 +17,7 @@ import (
 type AdmissionDeps struct {
 	RedisClient      *redis.Client
 	UserPolicyReader domain.UserPolicyReader
+	Metrics          domain.MetricsRecorder
 }
 
 type AdmissionConfig = config.AdmissionConfig
@@ -76,6 +77,9 @@ func NewAdmissionModule(
 	if deps.UserPolicyReader == nil {
 		return nil, fmt.Errorf("admission dependencies: user policy reader must not be nil")
 	}
+	if deps.Metrics == nil {
+		return nil, fmt.Errorf("admission dependencies: metrics recorder must not be nil")
+	}
 	if logger == nil {
 		return nil, fmt.Errorf("admission logger must not be nil")
 	}
@@ -89,6 +93,7 @@ func NewAdmissionModule(
 		admissionModDeps.tokenPolicy,
 		admissionModDeps.modelAccessPolicy,
 		admissionModDeps.rateLimitPolicy,
+		deps.Metrics,
 	)
 
 	return &Module{

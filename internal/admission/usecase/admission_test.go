@@ -92,6 +92,7 @@ func TestAdmissionUseCaseAdmitsValidFreeAndPremiumRequests(t *testing.T) {
 				tokenPolicy,
 				modelPolicy,
 				rateLimitPolicy,
+				nil,
 			)
 
 			input := public.AdmitInput{
@@ -130,6 +131,7 @@ func TestAdmissionUseCaseRejectsModelNotAllowedForTier(t *testing.T) {
 		tokenPolicy,
 		modelPolicy,
 		rateLimitPolicy,
+		nil,
 	)
 
 	got, err := service.Admit(context.Background(), public.AdmitInput{
@@ -157,6 +159,7 @@ func TestAdmissionUseCaseRejectsInputExceedingTierLimit(t *testing.T) {
 		tokenPolicy,
 		modelPolicy,
 		rateLimitPolicy,
+		nil,
 	)
 
 	got, err := service.Admit(context.Background(), public.AdmitInput{
@@ -184,6 +187,7 @@ func TestAdmissionUseCaseRejectsUnknownUserPolicyFailure(t *testing.T) {
 		tokenPolicy,
 		modelPolicy,
 		rateLimitPolicy,
+		nil,
 	)
 
 	got, err := service.Admit(context.Background(), public.AdmitInput{
