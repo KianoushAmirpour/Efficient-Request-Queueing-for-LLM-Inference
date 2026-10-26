@@ -96,8 +96,8 @@ func newHarness(t *testing.T) *harness {
 	queueAdapter := recoveryAdapters.NewSchedulerAdapter(sm.RecoveryService)
 	idempotencyAdapter := recoveryAdapters.NewIdempotencyStatusAdapter(ide)
 	eventsAdapter := recoveryAdapters.NewEventsAdapter(smStream.Publisher())
-	service := recovery.NewRecoveryService(queueAdapter, ja, ja, ja, idempotencyAdapter, eventsAdapter, time.Second, 100, time.Second, 20, logger)
-	serviceB := recovery.NewRecoveryService(queueAdapter, ja, ja, ja, idempotencyAdapter, eventsAdapter, time.Second, 100, time.Second, 20, logger)
+	service := recovery.NewRecoveryService(queueAdapter, ja, ja, ja, idempotencyAdapter, eventsAdapter, time.Second, 100, time.Second, 20, logger, nil)
+	serviceB := recovery.NewRecoveryService(queueAdapter, ja, ja, ja, idempotencyAdapter, eventsAdapter, time.Second, 100, time.Second, 20, logger, nil)
 	t.Cleanup(pg.Close)
 	return &harness{r: r, pg: pg, jobs: jm.JobCreator, reader: jm.JobReader, queue: sm.QueueService, claimer: sm.JobClaimerService, service: service, serviceB: serviceB, idem: ide}
 }
