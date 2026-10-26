@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/inference-platform ./cmd
 
 
-FROM alpine:3.22 AS runtime
+FROM alpine:3.24 AS runtime
 
 WORKDIR /app
 
