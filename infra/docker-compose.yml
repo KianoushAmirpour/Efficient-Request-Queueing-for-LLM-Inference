@@ -117,7 +117,7 @@ services:
       - internal
 
   vector:
-    image: timberio/vector:0.50.0-debian
+    image: timberio/vector:0.60.0-debian
     container_name: vector
     command:
       - "--config"
