@@ -103,7 +103,7 @@ services:
       - internal
    
   victorialogs:
-    image: victoriametrics/victoria-logs:v1.42.0
+    image: victoriametrics/victoria-logs:v1.53.0
     container_name: victorialogs
     command:
       - "-storageDataPath=/victoria-logs-data"
