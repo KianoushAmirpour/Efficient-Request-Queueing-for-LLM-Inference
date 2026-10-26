@@ -76,7 +76,7 @@ func TestAdmissionRejectsBeforeDownstreamWork(t *testing.T) {
 			CoalescingTTL: time.Minute, IdempotencyTTL: time.Minute, CompletedIdempotencyTTL: time.Hour,
 		},
 		slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-	)
+		nil)
 
 	_, err := usecase.Submit(context.Background(), &domain.InferenceInput{
 		Prompt: "hello",
