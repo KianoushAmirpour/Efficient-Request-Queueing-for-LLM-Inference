@@ -64,7 +64,7 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
 
       - name: Run govulncheck
-        run: govulncheck -show=traces,verbose ./... > govulncheck.log 2>&1
+        run: govulncheck -show traces ./... > govulncheck.log 2>&1
       
       - name: Upload vulnerability report
         if: always()
