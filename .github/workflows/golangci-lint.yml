@@ -64,7 +64,16 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
 
       - name: Run govulncheck
-        run: govulncheck ./...
+        run: govulncheck -show=traces,verbose ./... > govulncheck.log 2>&1
+      
+      - name: Upload vulnerability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: govulncheck-report
+          path: govulncheck.log
+          if-no-files-found: ignore
+
 
   build:
     name: Build the project
