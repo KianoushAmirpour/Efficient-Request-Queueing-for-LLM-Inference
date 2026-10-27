@@ -1,4 +1,4 @@
-include .env
+-include .env
 export
 
 # Go configuration
@@ -27,8 +27,7 @@ MIGRATIONS_DIR := ./migrations
 	test_all test_unit test_admission test_scheduler \
 	test_integration test_integration_all test_integration_stress \
 	test_admission_integration test_scheduler_integration \
-	test_job test_recovery test_worker test_concurrency \
-	mock_users mock_users_cleanup
+	test_job test_recovery test_worker test_concurrency 
 
 # ---------------------------------------------------------------------------
 # Local development
