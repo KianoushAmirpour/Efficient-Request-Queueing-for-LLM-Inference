@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"efficient-request-queueing-for-llm-inference/internal/admission/domain"
 	"efficient-request-queueing-for-llm-inference/internal/admission/public"
@@ -15,6 +16,11 @@ type admissionTestUsers struct {
 	policies map[string]domain.UserPolicy
 	err      error
 }
+
+type NoopMetrics struct{}
+
+func (NoopMetrics) RequestFinished(time.Duration)          {}
+func (NoopMetrics) RequestRejected(domain.RejectionReason) {}
 
 func (f admissionTestUsers) GetUserPolicy(_ context.Context, userID string) (domain.UserPolicy, error) {
 	if f.err != nil {
@@ -92,7 +98,7 @@ func TestAdmissionUseCaseAdmitsValidFreeAndPremiumRequests(t *testing.T) {
 				tokenPolicy,
 				modelPolicy,
 				rateLimitPolicy,
-				nil,
+				NoopMetrics{},
 			)
 
 			input := public.AdmitInput{
@@ -131,7 +137,7 @@ func TestAdmissionUseCaseRejectsModelNotAllowedForTier(t *testing.T) {
 		tokenPolicy,
 		modelPolicy,
 		rateLimitPolicy,
-		nil,
+		NoopMetrics{},
 	)
 
 	got, err := service.Admit(context.Background(), public.AdmitInput{
@@ -159,7 +165,7 @@ func TestAdmissionUseCaseRejectsInputExceedingTierLimit(t *testing.T) {
 		tokenPolicy,
 		modelPolicy,
 		rateLimitPolicy,
-		nil,
+		NoopMetrics{},
 	)
 
 	got, err := service.Admit(context.Background(), public.AdmitInput{
@@ -187,7 +193,7 @@ func TestAdmissionUseCaseRejectsUnknownUserPolicyFailure(t *testing.T) {
 		tokenPolicy,
 		modelPolicy,
 		rateLimitPolicy,
-		nil,
+		NoopMetrics{},
 	)
 
 	got, err := service.Admit(context.Background(), public.AdmitInput{
