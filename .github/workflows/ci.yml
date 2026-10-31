@@ -47,7 +47,7 @@ jobs:
       - name: Verify go.mod is tidy
         run: |
           go mod tidy
-          git diff --exit-code go.mod go.sum || echo "Error: go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes." && exit 1
+          git diff --exit-code go.mod go.sum || (echo "Error: go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes." && exit 1)
 
   build:
     name: Build the project
