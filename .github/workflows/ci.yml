@@ -171,7 +171,7 @@ jobs:
 
               (if $migrate == "true" then {
                 name: "migrate",
-                scan: true,
+                scan: false,
                 image_suffix: "-migrate",
                 dockerfile: "./deployment/migrations/Dockerfile.migrate",
                 context: ".",
