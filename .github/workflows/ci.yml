@@ -161,6 +161,7 @@ jobs:
             '[
               (if $app == "true" then {
                 name: "app",
+                scan: true,
                 image_suffix: "",
                 dockerfile: "./infra/Dockerfile",
                 context: ".",
@@ -170,6 +171,7 @@ jobs:
 
               (if $migrate == "true" then {
                 name: "migrate",
+                scan: true,
                 image_suffix: "-migrate",
                 dockerfile: "./deployment/migrations/Dockerfile.migrate",
                 context: ".",
@@ -179,6 +181,7 @@ jobs:
 
               (if $postgres == "true" then {
                 name: "postgres",
+                scan: false,
                 image_suffix: "-postgres",
                 dockerfile: "./deployment/postgres/Dockerfile.postgres",
                 context: ".",
@@ -255,6 +258,7 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.cache_scope }},mode=max
 
       - name: Scan Docker image with Trivy
+        if: matrix.scan
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         with:
           image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
