@@ -1,0 +1,21 @@
+FROM golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS builder
+
+ARG GOOSE_VERSION
+
+RUN test -n "$GOOSE_VERSION" && \
+    go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
+
+
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /go/bin/goose /usr/local/bin/goose
+
+COPY migrations/ /migrations/
+
+COPY ./migrate-entrypoint.sh /usr/local/bin/migrate-entrypoint
+
+RUN chmod +x /usr/local/bin/migrate-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/migrate-entrypoint"]
