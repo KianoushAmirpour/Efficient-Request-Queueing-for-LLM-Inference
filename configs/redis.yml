@@ -1,5 +1,5 @@
 database:
-  host: localhost
+  host: redis-stack
   port: 6379
   db: 0
   read_timeout: 5s

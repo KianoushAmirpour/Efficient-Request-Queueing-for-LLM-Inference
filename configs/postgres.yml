@@ -1,5 +1,5 @@
 database:
-  host: localhost
+  host: postgres
   port: 5432
   db: postgres_db
   sslmode: disable
