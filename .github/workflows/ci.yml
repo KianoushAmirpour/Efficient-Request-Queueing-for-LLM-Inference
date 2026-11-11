@@ -1,10 +1,13 @@
+
 name: ci
+
 on:
   push:
     branches:
       - main
     paths-ignore:
       - 'deployment/ansible/**'
+
   pull_request:
     paths-ignore:
       - 'deployment/ansible/**'
@@ -48,7 +51,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      
+
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
@@ -57,7 +60,10 @@ jobs:
       - name: Verify go.mod is tidy
         run: |
           go mod tidy
-          git diff --exit-code go.mod go.sum || (echo "Error: go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes." && exit 1)
+          git diff --exit-code go.mod go.sum || (
+            echo "Error: go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes."
+            exit 1
+          )
 
   go-build:
     name: Build Go packages
@@ -75,7 +81,7 @@ jobs:
 
       - name: Compile all packages
         run: go build ./...
-  
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -87,7 +93,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: setup Go
+      - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
           go-version-file: go.mod
@@ -103,10 +109,95 @@ jobs:
           name: coverage
           path: coverage.out
           if-no-files-found: ignore
-  
+
+  changes:
+    name: Detect Docker image changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@15192bc058cc28a13dbf6cde61f19e18988b7af6
+        with:
+          filters: |
+            app:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'infra/Dockerfile'
+              - '.dockerignore'
+              - 'configs/**'
+
+            migrate:
+              - 'deployment/migrations/**'
+              - 'migrations/**'
+              - '.dockerignore'
+
+            postgres:
+              - 'deployment/postgres/**'
+              - '.dockerignore'
+
+      - name: Generate build matrix
+        id: matrix
+        env:
+          APP_CHANGED: ${{ steps.filter.outputs.app }}
+          MIGRATE_CHANGED: ${{ steps.filter.outputs.migrate }}
+          POSTGRES_CHANGED: ${{ steps.filter.outputs.postgres }}
+        run: |
+          matrix=$(jq -cn \
+            --arg app "$APP_CHANGED" \
+            --arg migrate "$MIGRATE_CHANGED" \
+            --arg postgres "$POSTGRES_CHANGED" \
+            '[
+              (if $app == "true" then {
+                name: "app",
+                image_suffix: "",
+                dockerfile: "./infra/Dockerfile",
+                context: ".",
+                cache_scope: "app",
+                max_size_mb: 100
+              } else empty end),
+
+              (if $migrate == "true" then {
+                name: "migrate",
+                image_suffix: "-migrate",
+                dockerfile: "./deployment/migrations/Dockerfile.migrate",
+                context: ".",
+                cache_scope: "migrate",
+                max_size_mb: 100
+              } else empty end),
+
+              (if $postgres == "true" then {
+                name: "postgres",
+                image_suffix: "-postgres",
+                dockerfile: "./deployment/postgres/Dockerfile.postgres",
+                context: ".",
+                cache_scope: "postgres",
+                max_size_mb: 700
+              } else empty end)
+            ]')
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+          echo "Selected images:"
+          echo "$matrix" | jq .
+
   docker-image:
-    name: Build, Scan and Publish the docker image
-    needs: [go-build, test]
+    name: Build, Scan and Publish (${{ matrix.name }})
+    needs: [lint, verify, go-build, test, changes]
+
+    if: needs.changes.outputs.matrix != '[]'
+
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -118,32 +209,8 @@ jobs:
       fail-fast: false
       max-parallel: 3
       matrix:
-        include:
-          - name: app
-            image_suffix: ""
-            dockerfile: ./infra/Dockerfile
-            context: .
-            cache_scope: app
-            max_size_mb: 100
-            build_args: ""
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
 
-          - name: migrate
-            image_suffix: "-migrate"
-            dockerfile: ./deployment/migrations/Dockerfile.migrate
-            context: .
-            cache_scope: migrate
-            max_size_mb: 100
-            build_args: |
-              GOOSE_VERSION=${{ vars.GOOSE_VERSION }}
-
-          - name: postgres
-            image_suffix: "-postgres"
-            dockerfile: ./deployment/postgres/Dockerfile.postgres
-            context: .
-            cache_scope: postgres
-            max_size_mb: 700
-            build_args: ""
-      
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -157,23 +224,34 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}${{ matrix.image_suffix }}
           tags: |
             type=sha
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            # type=semver,pattern={{version}}
+
+      - name: Validate Goose version
+        if: matrix.name == 'migrate'
+        env:
+          GOOSE_VERSION: ${{ vars.GOOSE_VERSION }}
+        run: |
+          test -n "$GOOSE_VERSION" || {
+            echo "::error::GOOSE_VERSION repository variable is missing"
+            exit 1
+          }
 
       - name: Build Docker image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
-          context: .
-          file: ./infra/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           load: true
           push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: |
+            ${{ matrix.name == 'migrate' && format('GOOSE_VERSION={0}', vars.GOOSE_VERSION) || '' }}
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,scope=${{ matrix.cache_scope }},mode=max
 
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
@@ -186,10 +264,9 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Check Docker image size
-        shell: bash
         env:
           IMAGE: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
-          MAX_SIZE_MB: 100
+          MAX_SIZE_MB: ${{ matrix.max_size_mb }}
         run: |
           SIZE_BYTES=$(docker image inspect "$IMAGE" --format='{{.Size}}')
           SIZE_MB=$((SIZE_BYTES / 1024 / 1024))
@@ -209,7 +286,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Push Docker image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -218,4 +295,3 @@ jobs:
           while read -r tag; do
             [ -n "$tag" ] && docker push "$tag"
           done <<< "$TAGS"
-          
