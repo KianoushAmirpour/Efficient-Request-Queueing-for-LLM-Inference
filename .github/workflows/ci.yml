@@ -194,6 +194,7 @@ jobs:
 
   docker-image:
     name: Build, Scan and Publish (${{ matrix.name }})
+    environment: staging
     needs: [lint, verify, go-build, test, changes]
 
     if: needs.changes.outputs.matrix != '[]'
