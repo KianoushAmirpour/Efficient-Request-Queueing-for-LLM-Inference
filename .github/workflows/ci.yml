@@ -3,7 +3,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'deployment/ansible/**'
   pull_request:
+    paths-ignore:
+      - 'deployment/ansible/**'
 
 permissions:
   contents: read
@@ -109,6 +113,36 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - name: app
+            image_suffix: ""
+            dockerfile: ./infra/Dockerfile
+            context: .
+            cache_scope: app
+            max_size_mb: 100
+            build_args: ""
+
+          - name: migrate
+            image_suffix: "-migrate"
+            dockerfile: ./deployment/migrations/Dockerfile.migrate
+            context: .
+            cache_scope: migrate
+            max_size_mb: 100
+            build_args: |
+              GOOSE_VERSION=${{ vars.GOOSE_VERSION }}
+
+          - name: postgres
+            image_suffix: "-postgres"
+            dockerfile: ./deployment/postgres/Dockerfile.postgres
+            context: .
+            cache_scope: postgres
+            max_size_mb: 700
+            build_args: ""
       
     steps:
       - name: Checkout code
