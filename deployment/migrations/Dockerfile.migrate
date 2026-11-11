@@ -14,7 +14,7 @@ COPY --from=builder /go/bin/goose /usr/local/bin/goose
 
 COPY migrations/ /migrations/
 
-COPY ./migrate-entrypoint.sh /usr/local/bin/migrate-entrypoint
+COPY deployment/migrations/migrate-entrypoint.sh /usr/local/bin/migrate-entrypoint
 
 RUN chmod +x /usr/local/bin/migrate-entrypoint
 
