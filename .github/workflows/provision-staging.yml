@@ -82,6 +82,13 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
 
+      - name: Validate Ansible inventory
+        run: |
+          ansible-inventory \
+            -i inventory/staging/host.yml \
+            --list \
+            --yaml
+
       - name: Run playbook
         env:
           VAULT_PASS: ${{ secrets.STAGING_ANSIBLE_VAULT }}
