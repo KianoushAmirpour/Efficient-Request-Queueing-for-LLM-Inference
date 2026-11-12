@@ -1,0 +1,79 @@
+---
+- name: Create APT keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download Docker repository signing key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure official Docker APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ ansible_facts.architecture | replace('x86_64', 'amd64') | replace('aarch64', 'arm64') }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu
+      {{ ansible_facts.distribution_release }} stable
+    filename: docker
+    state: present
+    update_cache: true
+
+- name: Install Docker Engine and supported plugins
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Configure Docker daemon
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {
+        "data-root": "{{ docker_data_root }}",
+        "live-restore": {{ docker_live_restore | bool | lower }},
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "{{ docker_log_max_size }}",
+          "max-file": "{{ docker_log_max_file }}"
+        },
+        "icc": false,
+        "userland-proxy": false
+      }
+    validate: "python3 -m json.tool %s"
+  notify: Restart Docker
+
+- name: Ensure Docker service is enabled and running
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Ensure containerd service is enabled and running
+  ansible.builtin.systemd:
+    name: containerd
+    enabled: true
+    state: started
+
+- name: Create deployment workspace
+  ansible.builtin.file:
+    path: "/opt/{{ deploy_username }}"
+    state: directory
+    owner: "{{ deploy_username }}"
+    group: "{{ deploy_username }}"
+    mode: "0750"

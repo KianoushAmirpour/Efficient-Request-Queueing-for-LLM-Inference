@@ -1,0 +1,9 @@
+---
+- name:  Setup staging VM
+  hosts: staging
+  become: true
+  gather_facts: true
+  roles:
+    - users
+    - docker
+    - app

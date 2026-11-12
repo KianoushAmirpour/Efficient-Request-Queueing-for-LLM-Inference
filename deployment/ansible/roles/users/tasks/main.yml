@@ -1,0 +1,59 @@
+---
+- name: Create administrative user
+  ansible.builtin.user:
+    name: "{{ admin_username }}"
+    comment: "Staging host administrator"
+    groups: sudo
+    append: true
+    shell: /bin/bash
+    create_home: true
+    password_lock: true
+    state: present
+
+- name: Install administrator authorized keys
+  ansible.posix.authorized_key:
+    user: "{{ admin_username }}"
+    key: "{{ item }}"
+    state: present
+    manage_dir: true
+  loop: "{{ admin_authorized_keys }}"
+
+- name: Configure passwordless sudo for administrator
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-{{ admin_username }}"
+    owner: root
+    group: root
+    mode: "0440"
+    content: "{{ admin_username }} ALL=(ALL:ALL) NOPASSWD: ALL\n"
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Create deployment user
+  ansible.builtin.user:
+    name: "{{ deploy_username }}"
+    comment: "Staging application deployment account"
+    shell: "{{ deploy_shell }}"
+    create_home: true
+    password_lock: true
+    state: present
+
+- name: Install deployment authorized keys when supplied
+  ansible.posix.authorized_key:
+    user: "{{ deploy_username }}"
+    key: "{{ item }}"
+    state: present
+    manage_dir: true
+  loop: "{{ deploy_authorized_keys }}"
+
+- name: Ensure deployment user's SSH directory permissions
+  ansible.builtin.file:
+    path: "/home/{{ deploy_username }}/.ssh"
+    state: directory
+    owner: "{{ deploy_username }}"
+    group: "{{ deploy_username }}"
+    mode: "0700"
+  when: deploy_authorized_keys | length > 0
+
+- name: Ensure deployment user has no sudoers drop-in
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/90-{{ deploy_username }}"
+    state: absent

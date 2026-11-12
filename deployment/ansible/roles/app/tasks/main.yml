@@ -1,0 +1,69 @@
+---
+- name: Create application directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: deploy
+    group: deploy
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ app_dir }}", mode: "0750" }
+    - { path: "{{ app_dir }}/prometheus", mode: "0755" }
+    - { path: "{{ app_dir }}/grafana", mode: "0755" }
+    - { path: "{{ app_dir }}/grafana/provisioning", mode: "0755" }
+    - { path: "{{ app_dir }}/grafana/dashboards", mode: "0755" }
+    - { path: "{{ app_dir }}/vector", mode: "0755" }
+
+- name: Deploy application environment
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: deploy
+    group: deploy
+    mode: "0600"
+  no_log: true
+
+- name: Deploy Docker Compose configuration
+  ansible.builtin.copy:
+    src: docker-compose-prod.yml
+    dest: "{{ app_dir }}/{{ compose_file }}"
+    owner: deploy
+    group: deploy
+    mode: "0640"
+
+- name: Sync Prometheus config
+  ansible.builtin.copy:
+    src: prometheus/
+    dest: "{{ app_dir }}/prometheus/"
+    owner: deploy
+    group: deploy
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Sync Grafana provisioning
+  ansible.builtin.copy:
+    src: grafana/provisioning/
+    dest: "{{ app_dir }}/grafana/provisioning/"
+    owner: deploy
+    group: deploy
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Sync Grafana dashboards
+  ansible.builtin.copy:
+    src: grafana/dashboards/
+    dest: "{{ app_dir }}/grafana/dashboards/"
+    owner: deploy
+    group: deploy
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Sync Vector config
+  ansible.builtin.copy:
+    src: vector/
+    dest: "{{ app_dir }}/vector/"
+    owner: deploy
+    group: deploy
+    mode: "0644"
+    directory_mode: "0755"
+

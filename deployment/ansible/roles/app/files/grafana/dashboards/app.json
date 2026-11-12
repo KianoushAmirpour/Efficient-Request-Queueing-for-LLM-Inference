@@ -1,0 +1,1259 @@
+{
+    "__requires": [
+        {
+            "type": "grafana",
+            "id": "grafana",
+            "name": "Grafana",
+            "version": "10.0.0"
+        },
+        {
+            "type": "panel",
+            "id": "timeseries",
+            "name": "Time series",
+            "version": ""
+        },
+        {
+            "type": "panel",
+            "id": "stat",
+            "name": "Stat",
+            "version": ""
+        },
+        {
+            "type": "panel",
+            "id": "gauge",
+            "name": "Gauge",
+            "version": ""
+        },
+        {
+            "type": "panel",
+            "id": "text",
+            "name": "Text",
+            "version": ""
+        }
+    ],
+    "annotations": {
+        "list": [
+            {
+                "builtIn": 1,
+                "datasource": {
+                    "type": "grafana",
+                    "uid": "-- Grafana --"
+                },
+                "enable": true,
+                "hide": true,
+                "iconColor": "rgba(0, 211, 255, 1)",
+                "name": "Annotations & Alerts",
+                "type": "dashboard"
+            }
+        ]
+    },
+    "description": "Efficient Request Queue observability dashboard. Panels are organized around capacity, latency, queueing, concurrency, reliability, LLM inference, streaming, and fairness questions.",
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "id": null,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+        {
+            "id": 1,
+            "type": "text",
+            "title": "How to read this dashboard",
+            "gridPos": {
+                "x": 0,
+                "y": 0,
+                "w": 24,
+                "h": 6
+            },
+            "options": {
+                "mode": "markdown",
+                "content": "### Dashboard questions and answers\n\n| Question | Dashboard signal |\n|---|---|\n| **Q1. How much work can the system successfully process?** | Panels 2, 3, and 21: accepted and successful jobs/sec. |\n| **Q2. How long do jobs wait for scheduler service?** | Panels 7 and 17: queue-wait percentiles. |\n| **Q3. How much concurrent work can workers sustain?** | Panels 5 and 9: worker in-flight jobs. |\n| **Q4. How often does it fail, retry, and recover?** | Panels 4, 11, 12, and 22: terminal outcomes, retries by reason, and recoveries by result. |\n| **Q5. Accepted job to response delivery latency?** | Panel 6: end-to-end percentiles. |\n| **Q6. Where is latency spent?** | Panel 17: admission, queue, processing, TTFT, generation, and stream p95s. Stages are diagnostic and not necessarily additive. |\n| **Q7. How quickly does inference produce output?** | Panel 13: time-to-first-token percentiles. |\n| **Q8. How long does model generation take?** | Panel 14: generation-duration percentiles. Token-volume metrics are not implemented. |\n| **Q9. How many users compete for scheduler capacity?** | Active-user metric is not implemented; use load-test harness context. |\n| **Q10. Is scheduler service fair and starvation-free?** | Panel 18: validate claim order, per-user wait/service share, scheduling gap, and starvation in the load-test harness. |\n\nHTTP panels 19, 20, and 24 use the **Route** and **Method** filters; panel 25 breaks traffic down by status class.\n\n> During load tests, increase offered RPS/concurrency and watch queue-wait and end-to-end latency, worker saturation, and retry/failure amplification."
+            }
+        },
+        {
+            "id": 2,
+            "type": "stat",
+            "title": "Accepted Jobs / sec",
+            "description": "Accepted workload entering the processing system.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 6,
+                "w": 6,
+                "h": 6
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "decimals": 2
+                },
+                "overrides": []
+            },
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "orientation": "auto",
+                "textMode": "auto",
+                "colorMode": "value",
+                "justifyMode": "auto"
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_jobs_accepted_total[$__rate_interval]))",
+                    "legendFormat": ""
+                }
+            ]
+        },
+        {
+            "id": 3,
+            "type": "stat",
+            "title": "Successful Jobs / sec",
+            "description": "Successful terminal jobs per second.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 6,
+                "y": 6,
+                "w": 6,
+                "h": 6
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "decimals": 2
+                },
+                "overrides": []
+            },
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "orientation": "auto",
+                "textMode": "auto",
+                "colorMode": "value",
+                "justifyMode": "auto"
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_jobs_terminal_total{status=\"succeeded\"}[$__rate_interval]))",
+                    "legendFormat": ""
+                }
+            ]
+        },
+        {
+            "id": 4,
+            "type": "stat",
+            "title": "Failure Rate / sec",
+            "description": "Permanent terminal failures per second.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 6,
+                "w": 6,
+                "h": 6
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "decimals": 2
+                },
+                "overrides": []
+            },
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "orientation": "auto",
+                "textMode": "auto",
+                "colorMode": "value",
+                "justifyMode": "auto"
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_jobs_terminal_total{status=\"failed\"}[$__rate_interval]))",
+                    "legendFormat": ""
+                }
+            ]
+        },
+        {
+            "id": 5,
+            "type": "gauge",
+            "title": "Worker In-Flight Jobs",
+            "description": "Total actively processing job attempts across all replicas. Arc capacity = worker.num_workers (5) — update max if num_workers changes.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 18,
+                "y": 6,
+                "w": 6,
+                "h": 6
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0,
+                    "max": 20,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "yellow",
+                                "value": 4
+                            },
+                            {
+                                "color": "red",
+                                "value": 5
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "options": {
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showThresholdLabels": false,
+                "showThresholdMarkers": true
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(inference_worker_inflight_jobs)",
+                    "legendFormat": ""
+                }
+            ]
+        },
+        {
+            "id": 6,
+            "type": "timeseries",
+            "title": "End-to-End Job Latency",
+            "description": "Accepted job → final response delivered. This is the most user-visible workload latency.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 12,
+                "w": 24,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.50, sum by (le) (rate(inference_job_end_to_end_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p50"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.90, sum by (le) (rate(inference_job_end_to_end_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p90"
+                },
+                {
+                    "refId": "C",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_job_end_to_end_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p95"
+                },
+                {
+                    "refId": "D",
+                    "expr": "histogram_quantile(0.99, sum by (le) (rate(inference_job_end_to_end_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p99"
+                }
+            ]
+        },
+        {
+            "id": 7,
+            "type": "timeseries",
+            "title": "Queue Wait Latency",
+            "description": "Enqueue → successful claim. Primary signal for scheduler/queue contention.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 20,
+                "w": 16,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.50, sum by (le) (rate(inference_job_queue_wait_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p50"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.90, sum by (le) (rate(inference_job_queue_wait_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p90"
+                },
+                {
+                    "refId": "C",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_job_queue_wait_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p95"
+                },
+                {
+                    "refId": "D",
+                    "expr": "histogram_quantile(0.99, sum by (le) (rate(inference_job_queue_wait_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p99"
+                }
+            ]
+        },
+        {
+            "id": 9,
+            "type": "timeseries",
+            "title": "Worker Concurrency",
+            "description": "Total worker execution concurrency across replicas; the capacity line shows worker.num_workers (5) for one process.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 28,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(inference_worker_inflight_jobs)",
+                    "legendFormat": "in-flight jobs"
+                },
+                {
+                    "refId": "B",
+                    "expr": "vector(5)",
+                    "legendFormat": "capacity (num_workers)"
+                }
+            ]
+        },
+        {
+            "id": 10,
+            "type": "timeseries",
+            "title": "Job Processing Latency",
+            "description": "Claim → completed attempt. 'failed' means a failed attempt, not a terminally failed job. Attempts from workers that crash before recording an outcome are not observed.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 28,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.50, sum by (status, le) (rate(inference_job_processing_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{status}} p50"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.95, sum by (status, le) (rate(inference_job_processing_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{status}} p95"
+                },
+                {
+                    "refId": "C",
+                    "expr": "histogram_quantile(0.99, sum by (status, le) (rate(inference_job_processing_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "{{status}} p99"
+                }
+            ]
+        },
+        {
+            "id": 11,
+            "type": "timeseries",
+            "title": "Terminal Outcomes",
+            "description": "Terminal workload outcomes.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 36,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_jobs_terminal_total{status=\"succeeded\"}[$__rate_interval]))",
+                    "legendFormat": "success/s"
+                },
+                {
+                    "refId": "B",
+                    "expr": "sum(rate(inference_jobs_terminal_total{status=\"failed\"}[$__rate_interval]))",
+                    "legendFormat": "failed/s"
+                }
+            ]
+        },
+        {
+            "id": 12,
+            "type": "timeseries",
+            "title": "Retries and Recovery",
+            "description": "Retry and recovery activity under load. Totals and reason/result breakdowns show the same events; a recovery requeue also increments retries with reason=\"recovery\", and a recovery failure also increments terminal failures.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 36,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_jobs_retried_total[$__rate_interval]))",
+                    "legendFormat": "retries/s"
+                },
+                {
+                    "refId": "B",
+                    "expr": "sum by (reason) (rate(inference_jobs_retried_total[$__rate_interval]))",
+                    "legendFormat": "retry {{reason}}/s"
+                },
+                {
+                    "refId": "C",
+                    "expr": "sum(rate(inference_jobs_recovered_total[$__rate_interval]))",
+                    "legendFormat": "recoveries/s"
+                },
+                {
+                    "refId": "D",
+                    "expr": "sum by (result) (rate(inference_jobs_recovered_total[$__rate_interval]))",
+                    "legendFormat": "recovery {{result}}/s"
+                }
+            ]
+        },
+        {
+            "id": 13,
+            "type": "timeseries",
+            "title": "Time to First Token",
+            "description": "Generation start → first token.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 44,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.50, sum by (le) (rate(inference_llm_time_to_first_token_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p50"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_llm_time_to_first_token_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p95"
+                },
+                {
+                    "refId": "C",
+                    "expr": "histogram_quantile(0.99, sum by (le) (rate(inference_llm_time_to_first_token_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p99"
+                }
+            ]
+        },
+        {
+            "id": 14,
+            "type": "timeseries",
+            "title": "LLM Generation Duration",
+            "description": "Generation start → generation completion.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 44,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.50, sum by (le) (rate(inference_llm_generation_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p50"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_llm_generation_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p95"
+                },
+                {
+                    "refId": "C",
+                    "expr": "histogram_quantile(0.99, sum by (le) (rate(inference_llm_generation_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p99"
+                }
+            ]
+        },
+        {
+            "id": 15,
+            "type": "timeseries",
+            "title": "Stream Delivery Duration",
+            "description": "First streamed output → terminal stream delivery.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 52,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.50, sum by (le) (rate(inference_stream_delivery_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p50"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_stream_delivery_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p95"
+                },
+                {
+                    "refId": "C",
+                    "expr": "histogram_quantile(0.99, sum by (le) (rate(inference_stream_delivery_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "p99"
+                }
+            ]
+        },
+        {
+            "id": 17,
+            "type": "timeseries",
+            "title": "Latency Decomposition (p95)",
+            "description": "Diagnostic view of where p95 latency is coming from. Do not assume these stages are perfectly additive.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 60,
+                "w": 24,
+                "h": 9
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_admission_duration_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "admission p95"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_job_queue_wait_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "queue wait p95"
+                },
+                {
+                    "refId": "C",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_job_processing_seconds_bucket{status=\"succeeded\"}[$__rate_interval])))",
+                    "legendFormat": "processing p95"
+                },
+                {
+                    "refId": "D",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_llm_time_to_first_token_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "TTFT p95"
+                },
+                {
+                    "refId": "E",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_llm_generation_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "generation p95"
+                },
+                {
+                    "refId": "F",
+                    "expr": "histogram_quantile(0.95, sum by (le) (rate(inference_stream_delivery_seconds_bucket[$__rate_interval])))",
+                    "legendFormat": "stream p95"
+                }
+            ]
+        },
+        {
+            "id": 18,
+            "type": "text",
+            "title": "Fair Scheduling Validation",
+            "gridPos": {
+                "x": 0,
+                "y": 69,
+                "w": 24,
+                "h": 8
+            },
+            "options": {
+                "mode": "markdown",
+                "content": "### Fairness is intentionally not a Prometheus metric\n\nValidate this with the load-test harness using the **actual claim sequence**:\n\n1. Capture `user_id` for each claimed job in the test harness.\n2. Compute per-user **service share**.\n3. Measure **maximum consecutive claims** by one user.\n4. Measure each user's **maximum scheduling gap / queue wait**.\n5. Check for **starvation violations**.\n\nDo **not** add `user_id` as a Prometheus label. High-cardinality per-user metrics are not needed to prove the scheduler's fairness property.\n\nA useful test workload is several active users with deliberately different queue depths. The expected property is that a continuously backlogged user does not monopolize the worker while other active users have work waiting."
+            }
+        },
+        {
+            "id": 19,
+            "type": "timeseries",
+            "title": "HTTP Request Rate by Route",
+            "description": "HTTP-level traffic volume. Job metrics below represent workload lifecycle, not HTTP interactions.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 77,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "reqps",
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum by (method, route) (rate(inference_http_requests_total{route=~\"${route:regex}\", method=~\"${method:regex}\"}[$__rate_interval]))",
+                    "legendFormat": "{{method}} {{route}}"
+                }
+            ]
+        },
+        {
+            "id": 20,
+            "type": "timeseries",
+            "title": "HTTP Request Duration by Route",
+            "description": "HTTP request latency, independent of eventual job outcome.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 77,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "histogram_quantile(0.95, sum by (method, route, le) (rate(inference_http_request_duration_seconds_bucket{route=~\"${route:regex}\", method=~\"${method:regex}\"}[$__rate_interval])))",
+                    "legendFormat": "{{method}} {{route}} p95"
+                },
+                {
+                    "refId": "B",
+                    "expr": "histogram_quantile(0.99, sum by (method, route, le) (rate(inference_http_request_duration_seconds_bucket{route=~\"${route:regex}\", method=~\"${method:regex}\"}[$__rate_interval])))",
+                    "legendFormat": "{{method}} {{route}} p99"
+                }
+            ]
+        },
+        {
+            "id": 21,
+            "type": "timeseries",
+            "title": "Accepted vs Successful Completion Rate",
+            "description": "When accepted rate stays above successful completion rate, backlog is accumulating somewhere downstream.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 85,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_jobs_accepted_total[$__rate_interval]))",
+                    "legendFormat": "accepted/s"
+                },
+                {
+                    "refId": "B",
+                    "expr": "sum(rate(inference_jobs_terminal_total{status=\"succeeded\"}[$__rate_interval]))",
+                    "legendFormat": "successful/s"
+                }
+            ]
+        },
+        {
+            "id": 22,
+            "type": "timeseries",
+            "title": "Failure & Retry Ratio",
+            "description": "Derived reliability indicators. Ratios use Prometheus rates and are intended for trend analysis. Idle windows are gaps; retries per accepted job can exceed 100% because jobs may be retried more than once.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 85,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "decimals": 3
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_jobs_terminal_total{status=\"failed\"}[$__rate_interval])) / sum(rate(inference_jobs_terminal_total[$__rate_interval]))",
+                    "legendFormat": "terminal failure ratio"
+                },
+                {
+                    "refId": "B",
+                    "expr": "sum(rate(inference_jobs_retried_total[$__rate_interval])) / sum(rate(inference_jobs_accepted_total[$__rate_interval]))",
+                    "legendFormat": "retries per accepted job"
+                }
+            ]
+        },
+        {
+            "id": 23,
+            "type": "timeseries",
+            "title": "Admission Rejections / sec",
+            "description": "Admission-policy rejections by reason.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 93,
+                "w": 12,
+                "h": 6
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum by (reason) (rate(inference_admission_rejections_total[$__rate_interval]))",
+                    "legendFormat": "{{reason}}"
+                }
+            ]
+        },
+        {
+            "id": 24,
+            "type": "timeseries",
+            "title": "HTTP Requests In Flight",
+            "description": "Currently handled HTTP requests by route.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 93,
+                "w": 12,
+                "h": 6
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short"
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum by (method, route) (inference_http_requests_in_flight{route=~\"${route:regex}\", method=~\"${method:regex}\"})",
+                    "legendFormat": "{{method}} {{route}}"
+                }
+            ]
+        },
+        {
+            "id": 25,
+            "type": "timeseries",
+            "title": "HTTP Requests by Status Class",
+            "description": "HTTP response rate by normalized status class, filtered by route and method.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 0,
+                "y": 99,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "reqps",
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum by (status) (rate(inference_http_requests_total{route=~\"${route:regex}\", method=~\"${method:regex}\"}[$__rate_interval]))",
+                    "legendFormat": "{{status}}"
+                }
+            ]
+        },
+        {
+            "id": 26,
+            "type": "timeseries",
+            "title": "HTTP Error Ratio (5xx)",
+            "description": "Share of HTTP requests ending in a 5xx response, filtered by route and method.",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "gridPos": {
+                "x": 12,
+                "y": 99,
+                "w": 12,
+                "h": 8
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "decimals": 3
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "lastNotNull"
+                    ]
+                },
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                }
+            },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum(rate(inference_http_requests_total{status=\"5xx\", route=~\"${route:regex}\", method=~\"${method:regex}\"}[$__rate_interval])) / sum(rate(inference_http_requests_total{route=~\"${route:regex}\", method=~\"${method:regex}\"}[$__rate_interval]))",
+                    "legendFormat": "5xx / all requests"
+                }
+            ]
+        }
+    ],
+    "refresh": "5s",
+    "schemaVersion": 39,
+    "tags": [
+        "llm",
+        "inference",
+        "queue",
+        "scheduler",
+        "worker",
+        "prometheus"
+    ],
+    "templating": {
+        "list": [
+            {
+                "name": "route",
+                "label": "Route",
+                "type": "query",
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "refresh": 1,
+                "includeAll": true,
+                "multi": true,
+                "query": "label_values(inference_http_requests_total, route)",
+                "current": {
+                    "text": "All",
+                    "value": [
+                        "$__all"
+                    ]
+                },
+                "allValue": ".*",
+                "hide": 0
+            },
+            {
+                "name": "method",
+                "label": "Method",
+                "type": "query",
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "refresh": 1,
+                "includeAll": true,
+                "multi": true,
+                "query": "label_values(inference_http_requests_total, method)",
+                "current": {
+                    "text": "All",
+                    "value": [
+                        "$__all"
+                    ]
+                },
+                "allValue": ".*",
+                "hide": 0
+            }
+        ]
+    },
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "timezone": "",
+    "title": "Efficient Request Queue — Performance & Reliability",
+    "uid": "efficient-request-queue",
+    "version": 1,
+    "weekStart": ""
+}

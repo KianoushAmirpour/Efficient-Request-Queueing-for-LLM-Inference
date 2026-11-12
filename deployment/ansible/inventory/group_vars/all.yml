@@ -1,0 +1,20 @@
+---
+admin_username: admin
+deploy_username: deploy
+
+admin_public_key_file: "{{ lookup('env', 'HOME') }}/.ssh/staging-admin.pub"
+deploy_public_key_file: "{{ lookup('env', 'HOME') }}/.ssh/staging-deploy.pub"
+
+admin_authorized_keys:
+  - "{{ lookup('ansible.builtin.file', admin_public_key_file) }}"
+
+deploy_authorized_keys:
+  - "{{ lookup('ansible.builtin.file', deploy_public_key_file) }}"
+
+deploy_shell: /bin/bash
+
+admin_groups:
+  - sudo
+
+deploy_groups:
+  - docker
