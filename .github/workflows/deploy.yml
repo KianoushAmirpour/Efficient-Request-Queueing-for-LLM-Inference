@@ -1,0 +1,85 @@
+
+name: Deploy to VM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Deploy to VM via SSH
+        uses: appleboy/ssh-action@v1.0.0
+
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_DEPLOY_USER }}
+          key: ${{ secrets.STAGING_DEPLOY_PRIVATE_KEY }}
+
+          envs: GHCR_USERNAME,GHCR_TOKEN
+
+          script: |
+            set -eu
+
+            cd /opt/app
+
+            # Validate required deployment variables.
+            : "${GHCR_USERNAME:?GHCR_USERNAME is required}"
+            : "${GHCR_TOKEN:?GHCR_TOKEN is required}"
+
+            # Docker Compose command.
+            dc() {
+              docker compose \
+                --env-file /opt/app/.env \
+                -f /opt/app/docker-compose-prod.yml \
+                "$@"
+            }
+
+            # Always attempt to remove registry credentials.
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+
+            echo "Authenticating with GHCR..."
+
+            printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+              --username "$GHCR_USERNAME" \
+              --password-stdin
+
+            echo "Validating Compose configuration..."
+
+            dc --profile migration config --quiet
+
+            echo "Pulling images..."
+
+            dc --profile migration pull
+
+            echo "Starting PostgreSQL and Redis..."
+
+            dc up -d --wait postgres redis-stack
+
+            echo "Running database migrations..."
+
+            dc --profile migration run --rm migrate
+
+            echo "Migrations completed successfully."
+
+            echo "Starting application and monitoring services..."
+
+            dc up -d --no-build --wait
+
+            echo "Checking deployment status..."
+
+            dc ps
+
+            echo "Deployment completed successfully."
