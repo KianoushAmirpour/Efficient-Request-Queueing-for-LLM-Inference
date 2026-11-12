@@ -85,6 +85,8 @@ jobs:
       - name: Run playbook
         env:
           VAULT_PASS: ${{ secrets.STAGING_ANSIBLE_VAULT }}
+          ADMIN_PUBLIC_KEY: ${{ secrets.STAGING_ADMIN_KEY }}
+          DEPLOY_PUBLIC_KEY: ${{ secrets.STAGING_DEPLOY_KEY }}
         run: |
           set -euo pipefail
 
