@@ -47,7 +47,7 @@ jobs:
       - name: Syntax check
         run: ansible-playbook -i inventory/staging/hosts.yml --syntax-check playbooks/main.yml
   
-  deploy:
+  Setup:
     needs: lint
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
