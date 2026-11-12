@@ -1,0 +1,102 @@
+name: Provision staging (Ansible)
+
+on:
+  push:
+    branches: [main]
+    paths: ['deployment/ansible/**']
+  pull_request:
+    paths: ['deployment/ansible/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ansible-staging
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: deployment/ansible
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Ansible and ansible-lint
+        run: pip install ansible-core==2.17.14 ansible-lint
+
+      - name: Install collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: ansible-lint
+        run: ansible-lint playbooks/
+
+      - name: Syntax check
+        run: ansible-playbook -i inventory/staging/hosts.yml --syntax-check playbooks/main.yml
+  
+  deploy:
+    needs: lint
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Ansible
+        run: pip install ansible-core==2.17.14
+
+      - name: Install collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+
+      - name: Configure SSH
+        working-directory: .
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Run playbook
+        env:
+          VAULT_PASS: ${{ secrets.STAGING_ANSIBLE_VAULT }}
+        run: |
+          set -euo pipefail
+
+          VAULT_PASSWORD_FILE=$(mktemp)
+          trap 'rm -f "$VAULT_PASSWORD_FILE"' EXIT
+
+          chmod 600 "$VAULT_PASSWORD_FILE"
+          printf '%s' "$VAULT_PASS" > "$VAULT_PASSWORD_FILE"
+
+          ansible-playbook \
+            -i inventory/staging/host.yml \
+            playbooks/main.yml \
+            --vault-password-file "$VAULT_PASSWORD_FILE"
