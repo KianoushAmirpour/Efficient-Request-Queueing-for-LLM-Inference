@@ -66,4 +66,3 @@
     group: deploy
     mode: "0644"
     directory_mode: "0755"
-
