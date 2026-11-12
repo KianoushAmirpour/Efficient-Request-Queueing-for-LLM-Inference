@@ -1,5 +1,5 @@
 ---
-- name:  Setup staging VM
+- name: Setup staging VM
   hosts: staging
   become: true
   gather_facts: true
