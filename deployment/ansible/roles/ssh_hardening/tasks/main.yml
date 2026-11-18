@@ -72,7 +72,7 @@
         | map('regex_replace', '^allowusers ', '')
         | list | sort)
         ==
-        (sshd_allowed_users | sort)
+        (ssh_hardening_sshd_allowed_users | sort)
     fail_msg: "Effective SSH configuration does not match the hardening policy."
   tags: [ssh_hardening, ssh_validation]
 
