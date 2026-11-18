@@ -2,11 +2,23 @@
 admin_username: admin
 deploy_username: deploy
 
+ssh_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.ssh"
+
+admin_public_key: >-
+  {{ (lookup('ansible.builtin.env', 'ADMIN_PUBLIC_KEY')
+      or lookup('ansible.builtin.file', ssh_dir ~ '/admin.pub'))
+     | trim }}
+
+deploy_public_key: >-
+  {{ (lookup('ansible.builtin.env', 'DEPLOY_PUBLIC_KEY')
+      or lookup('ansible.builtin.file', ssh_dir ~ '/deploy.pub'))
+     | trim }}
+
 admin_authorized_keys:
-  - "{{ lookup('ansible.builtin.file', '~/.ssh/admin.pub') | trim }}"
+  - - "{{ admin_public_key }}"
 
 deploy_authorized_keys:
-  - "{{ lookup('ansible.builtin.file', '~/.ssh/deploy.pub') | trim }}"
+  - "{{ deploy_public_key }}"
 
 deploy_shell: /bin/bash
 
