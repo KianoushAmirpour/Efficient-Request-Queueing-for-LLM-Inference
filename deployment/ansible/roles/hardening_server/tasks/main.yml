@@ -1,14 +1,14 @@
 ---
 - name: Install baseline packages
   ansible.builtin.apt:
-    name: "{{ baseline_packages_install }}"
+    name: "{{ hardening_server_baseline_packages_install }}"
     state: present
     update_cache: true
   tags: [hardening, packages]
 
 - name: Remove unnecessary packages
   ansible.builtin.apt:
-    name: "{{ packages_remove }}"
+    name: "{{ hardening_server_packages_remove }}"
     state: absent
     purge: true
     autoremove: true
