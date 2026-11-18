@@ -1,5 +1,5 @@
 ---
-packages_remove:
+hardening_server_packages_remove:
   - xinetd
   - inetutils-inetd
   - openbsd-inetd
@@ -16,7 +16,7 @@ packages_remove:
   - rsh-redone-client
   - talk
 
-baseline_packages_install:
+hardening_server_baseline_packages_install:
   - ca-certificates
   - curl
   - gnupg
@@ -40,7 +40,7 @@ baseline_packages_install:
   - acl
 
 
-sysctl_hardening_lines:
+hardening_server_sysctl_hardening_lines:
   # ==========================================
   # Kernel security
   # ==========================================
@@ -173,7 +173,7 @@ sysctl_hardening_lines:
   # Apply IPv6 source-routing protection to new interfaces.
   - "net.ipv6.conf.default.accept_source_route = 0"
 
-auditd_config:
+hardening_server_auditd_config:
   log_file: "/var/log/audit/audit.log"
   log_format: "RAW"
   flush: "INCREMENTAL_ASYNC"
@@ -190,10 +190,6 @@ auditd_config:
 
   audit_immutable: false
 
-  audit_docker_rules: false
+  docker_audit_rules: false
 
-faillock:
-  deny: 5
-  unlock_time: 900
-  even_deny_root: true
-  audit: true
+

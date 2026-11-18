@@ -64,4 +64,3 @@
     path: "/etc/sudoers.d/90-{{ deploy_username }}"
     state: absent
   tags: [users, sudo]
-  

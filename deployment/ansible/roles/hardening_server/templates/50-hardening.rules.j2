@@ -40,7 +40,7 @@
 ## Audit configuration
 -w /etc/audit/ -p wa -k auditconfig
 
-{% if audit_docker_rules | default(false) %}
+{% if docker_audit_rules | default(false) %}
 ## Docker configuration
 -w /etc/docker/ -p wa -k docker
 {% endif %}

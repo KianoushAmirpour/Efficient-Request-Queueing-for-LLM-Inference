@@ -1,13 +1,13 @@
 # Ansible managed auditd configuration
 
-log_file = {{ auditd_config.log_file }}
-log_format = {{ auditd_config.log_format }}
-flush = {{ auditd_config.flush }}
-freq = {{ auditd_config.freq }}
-max_log_file = {{ auditd_config.max_log_file }}
-num_logs = {{ auditd_config.num_logs }}
-max_log_file_action = {{ auditd_config.max_log_file_action }}
-space_left = {{ auditd_config.space_left }}
-space_left_action = {{ auditd_config.space_left_action }}
-admin_space_left = {{ auditd_config.admin_space_left }}
-admin_space_left_action = {{ auditd_config.admin_space_left_action }}
+log_file = {{ hardening_server_auditd_config.log_file }}
+log_format = {{ hardening_server_auditd_config.log_format }}
+flush = {{ hardening_server_auditd_config.flush }}
+freq = {{ hardening_server_auditd_config.freq }}
+max_log_file = {{ hardening_server_auditd_config.max_log_file }}
+num_logs = {{ hardening_server_auditd_config.num_logs }}
+max_log_file_action = {{ hardening_server_auditd_config.max_log_file_action }}
+space_left = {{ hardening_server_auditd_config.space_left }}
+space_left_action = {{ hardening_server_auditd_config.space_left_action }}
+admin_space_left = {{ hardening_server_auditd_config.admin_space_left }}
+admin_space_left_action = {{ hardening_server_auditd_config.admin_space_left_action }}

@@ -1,49 +1,49 @@
 ---
 # SSH service configuration
-sshd_service_name: ssh
-sshd_binary: /usr/sbin/sshd
-sshd_port: "{{ ansible_port | default(22) }}"
+ssh_hardening_sshd_service_name: ssh
+ssh_hardening_sshd_binary: /usr/sbin/sshd
+ssh_hardening_sshd_port: "{{ ansible_port | default(22) }}"
 
 # Users permitted to connect through SSH
-sshd_allowed_users:
+ssh_hardening_sshd_allowed_users:
   - admin
   - deploy
 
 # Authentication
-sshd_permit_root_login: "no"
-sshd_password_authentication: "no"
-sshd_kbd_interactive_authentication: "no"
-sshd_pubkey_authentication: "yes"
-sshd_permit_empty_passwords: "no"
+ssh_hardening_sshd_permit_root_login: "no"
+ssh_hardening_sshd_password_authentication: "no"
+ssh_hardening_sshd_kbd_interactive_authentication: "no"
+ssh_hardening_sshd_pubkey_authentication: "yes"
+ssh_hardening_sshd_permit_empty_passwords: "no"
 
 # Authentication limits
-sshd_max_auth_tries: 3
-sshd_login_grace_time: 30
+ssh_hardening_sshd_max_auth_tries: 3
+ssh_hardening_sshd_login_grace_time: 30
 
 # Connection limits
-sshd_max_startups: "10:30:60"
-sshd_max_sessions: 3
+ssh_hardening_sshd_max_startups: "10:30:60"
+ssh_hardening_sshd_max_sessions: 3
 
 # Connection liveness
-sshd_client_alive_interval: 300
-sshd_client_alive_count_max: 2
+ssh_hardening_sshd_client_alive_interval: 300
+ssh_hardening_sshd_client_alive_count_max: 2
 
 # Forwarding restrictions
-sshd_allow_agent_forwarding: "no"
-sshd_allow_tcp_forwarding: "no"
-sshd_allow_stream_local_forwarding: "no"
-sshd_x11_forwarding: "no"
-sshd_permit_tunnel: "no"
+ssh_hardening_sshd_allow_agent_forwarding: "no"
+ssh_hardening_sshd_allow_tcp_forwarding: "no"
+ssh_hardening_sshd_allow_stream_local_forwarding: "no"
+ssh_hardening_sshd_x11_forwarding: "no"
+ssh_hardening_sshd_permit_tunnel: "no"
 
 # Additional security
-sshd_permit_user_environment: "no"
-sshd_gssapi_authentication: "no"
-sshd_hostbased_authentication: "no"
-sshd_ignore_rhosts: "yes"
-sshd_strict_modes: "yes"
+ssh_hardening_sshd_permit_user_environment: "no"
+ssh_hardening_sshd_gssapi_authentication: "no"
+ssh_hardening_sshd_hostbased_authentication: "no"
+ssh_hardening_sshd_ignore_rhosts: "yes"
+ssh_hardening_sshd_strict_modes: "yes"
 
 # Keep PAM enabled for account/session management
-sshd_use_pam: "yes"
+ssh_hardening_sshd_use_pam: "yes"
 
 # Logging
-sshd_log_level: VERBOSE
+ssh_hardening_sshd_log_level: VERBOSE

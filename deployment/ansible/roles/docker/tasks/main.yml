@@ -120,13 +120,13 @@
 - name: Check Docker configuration directory
   ansible.builtin.stat:
     path: /etc/docker
-  register: audit_docker_config
+  register: docker_audit_config
   tags: [docker, auditd]
 
 - name: Validate Docker audit rule prerequisites
   ansible.builtin.assert:
     that:
-      - audit_docker_config.stat.exists
-      - audit_docker_config.stat.isdir
-  when: audit_docker_rules | default(false) | bool
+      - docker_audit_config.stat.exists
+      - docker_audit_config.stat.isdir
+  when: docker_audit_rules | default(false) | bool
   tags: [docker, auditd]

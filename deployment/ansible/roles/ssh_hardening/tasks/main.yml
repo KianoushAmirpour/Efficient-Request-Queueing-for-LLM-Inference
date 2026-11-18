@@ -14,25 +14,25 @@
 - name: Check administrator authorized_keys
   ansible.builtin.stat:
     path: "/home/{{ admin_username }}/.ssh/authorized_keys"
-  register: admin_keys_file
+  register: ssh_hardening_admin_keys_file
 
 - name: Validate administrator authorized_keys
   ansible.builtin.assert:
     that:
-      - admin_keys_file.stat.exists
-      - admin_keys_file.stat.size | int > 0
+      - ssh_hardening_admin_keys_file.stat.exists
+      - ssh_hardening_admin_keys_file.stat.size | int > 0
     fail_msg: "Missing or empty authorized_keys for {{ admin_username }}"
 
 - name: Check deployment authorized_keys
   ansible.builtin.stat:
     path: "/home/{{ deploy_username }}/.ssh/authorized_keys"
-  register: deploy_keys_file
+  register: ssh_hardening_deploy_keys_file
 
 - name: Validate deployment authorized_keys
   ansible.builtin.assert:
     that:
-      - deploy_keys_file.stat.exists
-      - deploy_keys_file.stat.size | int > 0
+      - ssh_hardening_deploy_keys_file.stat.exists
+      - ssh_hardening_deploy_keys_file.stat.size | int > 0
     fail_msg: "Missing or empty authorized_keys for {{ deploy_username }}"
 
 - name: Deploy SSH hardening configuration
@@ -42,7 +42,7 @@
     owner: root
     group: root
     mode: "0600"
-    validate: "{{ sshd_binary }} -t -f %s"
+    validate: "{{ ssh_hardening_sshd_binary }} -t -f %s"
   notify: Reload SSH
   tags: [ssh_hardening, ssh_config]
 
@@ -52,22 +52,22 @@
 
 - name: Inspect effective SSH configuration
   ansible.builtin.command:
-    cmd: "{{ sshd_binary }} -T"
-  register: sshd_effective
+    cmd: "{{ ssh_hardening_sshd_binary }} -T"
+  register: ssh_hardening_sshd_effective
   changed_when: false
   tags: [ssh_hardening, ssh_validation]
 
 - name: Verify effective SSH configuration
   ansible.builtin.assert:
     that:
-      - "'permitrootlogin no' in sshd_effective.stdout_lines"
-      - "'passwordauthentication no' in sshd_effective.stdout_lines"
-      - "'kbdinteractiveauthentication no' in sshd_effective.stdout_lines"
-      - "'pubkeyauthentication yes' in sshd_effective.stdout_lines"
-      - "'permitemptypasswords no' in sshd_effective.stdout_lines"
-      - "'usepam yes' in sshd_effective.stdout_lines"
+      - "'permitrootlogin no' in ssh_hardening_sshd_effective.stdout_lines"
+      - "'passwordauthentication no' in ssh_hardening_sshd_effective.stdout_lines"
+      - "'kbdinteractiveauthentication no' in ssh_hardening_sshd_effective.stdout_lines"
+      - "'pubkeyauthentication yes' in ssh_hardening_sshd_effective.stdout_lines"
+      - "'permitemptypasswords no' in ssh_hardening_sshd_effective.stdout_lines"
+      - "'usepam yes' in ssh_hardening_sshd_effective.stdout_lines"
       - >-
-        (sshd_effective.stdout_lines
+        (ssh_hardening_sshd_effective.stdout_lines
         | select('match', '^allowusers ')
         | map('regex_replace', '^allowusers ', '')
         | list | sort)
@@ -85,4 +85,3 @@
     timeout: 30
     sleep: 3
   tags: [ssh_hardening, connectivity]
-  

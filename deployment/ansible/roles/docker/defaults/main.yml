@@ -9,7 +9,7 @@ docker_default_bind_ip: 127.0.0.1
 
 # Docker group access is equivalent to root access; disable if deployment uses become.
 docker_deploy_user_in_group: true
-audit_docker_rules: false
+docker_audit_rules: false
 
 docker_conflicting_packages:
   - docker.io

@@ -1,7 +1,6 @@
 ---
 - name: Reload SSH
   ansible.builtin.systemd:
-    name: "{{ sshd_service_name }}"
+    name: "{{ ssh_hardening_sshd_service_name }}"
     state: reloaded
   tags: [ssh_hardening, ssh_config]
-  
