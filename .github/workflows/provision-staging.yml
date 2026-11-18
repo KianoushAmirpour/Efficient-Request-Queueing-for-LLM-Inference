@@ -1,11 +1,6 @@
 name: Provision staging (Ansible)
 
 on:
-  push:
-    branches: [main]
-    paths: ['deployment/ansible/**']
-  pull_request:
-    paths: ['deployment/ansible/**']
   workflow_dispatch:
 
 permissions:
@@ -43,13 +38,9 @@ jobs:
 
       - name: ansible-lint
         run: ansible-lint playbooks/
-
-      - name: Syntax check
-        run: ansible-playbook -i inventory/staging/hosts.yml --syntax-check playbooks/main.yml
   
-  Setup:
+  provision:
     needs: lint
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: staging
@@ -75,12 +66,13 @@ jobs:
         working-directory: .
         env:
           SSH_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
-          KNOWN_HOSTS: ${{ secrets.STAGING_HOST }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/admin
+          chmod 600 ~/.ssh/admin
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Run playbook
         env:
@@ -96,6 +88,14 @@ jobs:
           chmod 600 "$VAULT_PASSWORD_FILE"
           printf '%s' "$VAULT_PASS" > "$VAULT_PASSWORD_FILE"
 
+          # Validate playbook syntax with Vault access
+          ansible-playbook \
+            -i inventory/staging/hosts.yml \
+            --syntax-check \
+            playbooks/main.yml \
+            --vault-password-file "$VAULT_PASSWORD_FILE"
+
+          # Provision staging
           ansible-playbook \
             -i inventory/staging/hosts.yml \
             playbooks/main.yml \
