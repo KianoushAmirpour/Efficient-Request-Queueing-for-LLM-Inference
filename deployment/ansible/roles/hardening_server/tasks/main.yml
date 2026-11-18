@@ -145,7 +145,7 @@
     owner: root
     group: root
     mode: "0640"
-  when: auditd_config.audit_immutable | bool
+  when: hardening_server_auditd_config.audit_immutable | bool
   notify: Reload audit rules
   tags: [hardening, auditd, audit_rules]
 
@@ -153,7 +153,7 @@
   ansible.builtin.file:
     path: /etc/audit/rules.d/99-finalize.rules
     state: absent
-  when: not (auditd_config.audit_immutable | bool)
+  when: not (hardening_server_auditd_config.audit_immutable | bool)
   notify: Reload audit rules
   tags: [hardening, auditd, audit_rules]
 

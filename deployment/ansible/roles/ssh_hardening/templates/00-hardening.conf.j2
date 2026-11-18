@@ -1,5 +1,5 @@
 # Ansible-managed SSH hardening configuration
-Port {{ sshd_port }}
+Port {{ ssh_hardening_sshd_port }}
 PermitRootLogin {{ ssh_hardening_sshd_permit_root_login }}
 PasswordAuthentication {{ ssh_hardening_sshd_password_authentication }}
 KbdInteractiveAuthentication {{ ssh_hardening_sshd_kbd_interactive_authentication }}

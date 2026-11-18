@@ -3,8 +3,8 @@
   ansible.builtin.assert:
     that:
       - ansible_user is defined
-      - sshd_allowed_users | length > 0
-      - ansible_user in sshd_allowed_users
+      - ssh_hardening_sshd_allowed_users | length > 0
+      - ansible_user in ssh_hardening_sshd_allowed_users
     fail_msg: >
       SSH hardening aborted. The Ansible user must be included
       in sshd_allowed_users.
