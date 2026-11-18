@@ -15,7 +15,7 @@ deploy_public_key: >-
      | trim }}
 
 admin_authorized_keys:
-  - - "{{ admin_public_key }}"
+  - "{{ admin_public_key }}"
 
 deploy_authorized_keys:
   - "{{ deploy_public_key }}"
