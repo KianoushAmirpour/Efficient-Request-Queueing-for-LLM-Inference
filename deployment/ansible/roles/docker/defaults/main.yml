@@ -3,3 +3,20 @@ docker_data_root: /var/lib/docker
 docker_live_restore: true
 docker_log_max_size: "10m"
 docker_log_max_file: "3"
+
+# Default host binding for published ports on the default and new bridge networks.
+docker_default_bind_ip: 127.0.0.1
+
+# Docker group access is equivalent to root access; disable if deployment uses become.
+docker_deploy_user_in_group: true
+audit_docker_rules: false
+
+docker_conflicting_packages:
+  - docker.io
+  - docker-compose
+  - docker-compose-v2
+  - docker-doc
+  - docker-buildx
+  - podman-docker
+  - containerd
+  - runc

@@ -1,0 +1,17 @@
+---
+- name: Apply sysctl configuration
+  ansible.builtin.command:
+    cmd: sysctl --system
+  changed_when: true
+  tags: [hardening, sysctl]
+
+- name: Restart auditd
+  ansible.builtin.systemd:
+    name: auditd
+    state: restarted
+  tags: [hardening, auditd, audit_config]
+
+- name: Reload audit rules
+  ansible.builtin.command:
+    cmd: augenrules --load
+  tags: [hardening, auditd, audit_rules]

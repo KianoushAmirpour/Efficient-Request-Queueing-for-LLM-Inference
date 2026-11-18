@@ -13,6 +13,7 @@
     - { path: "{{ app_dir }}/grafana/provisioning", mode: "0755" }
     - { path: "{{ app_dir }}/grafana/dashboards", mode: "0755" }
     - { path: "{{ app_dir }}/vector", mode: "0755" }
+  tags: [app, app_config]
 
 - name: Deploy application environment
   ansible.builtin.template:
@@ -22,14 +23,16 @@
     group: deploy
     mode: "0600"
   no_log: true
+  tags: [app, app_secrets]
 
 - name: Deploy Docker Compose configuration
   ansible.builtin.copy:
     src: docker-compose-prod.yml
-    dest: "{{ app_dir }}/{{ compose_file }}"
+    dest: "{{ app_dir }}/docker-compose-prod.yml"
     owner: deploy
     group: deploy
     mode: "0640"
+  tags: [app, app_config]
 
 - name: Sync Prometheus config
   ansible.builtin.copy:
@@ -39,6 +42,7 @@
     group: deploy
     mode: "0644"
     directory_mode: "0755"
+  tags: [app, app_config, monitoring]
 
 - name: Sync Grafana provisioning
   ansible.builtin.copy:
@@ -48,6 +52,7 @@
     group: deploy
     mode: "0644"
     directory_mode: "0755"
+  tags: [app, app_config, monitoring]
 
 - name: Sync Grafana dashboards
   ansible.builtin.copy:
@@ -57,6 +62,7 @@
     group: deploy
     mode: "0644"
     directory_mode: "0755"
+  tags: [app, app_config, monitoring]
 
 - name: Sync Vector config
   ansible.builtin.copy:
@@ -66,3 +72,4 @@
     group: deploy
     mode: "0644"
     directory_mode: "0755"
+  tags: [app, app_config, monitoring]

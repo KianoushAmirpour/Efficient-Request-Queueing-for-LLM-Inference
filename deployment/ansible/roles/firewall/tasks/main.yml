@@ -1,0 +1,45 @@
+---
+- name: Ensure SSH port is defined
+  ansible.builtin.assert:
+    that:
+      - ssh_port is defined
+      - ssh_port | int >= 1
+      - ssh_port | int <= 65535
+    fail_msg: "Define a valid ssh_port in group_vars."
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+    cache_valid_time: 86400
+
+- name: Allow SSH
+  community.general.ufw:
+    rule: limit
+    port: "{{ ssh_port | string }}"
+    proto: tcp
+
+- name: Allow configured application ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port | string }}"
+    proto: "{{ item.proto | default('tcp') }}"
+  loop: "{{ firewall_allowed_ports }}"
+
+- name: Set default firewall policies
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: deny }
+    - { direction: outgoing, policy: allow }
+    - { direction: routed, policy: deny }
+
+- name: Enable UFW logging
+  community.general.ufw:
+    logging: "{{ firewall_logging }}"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled

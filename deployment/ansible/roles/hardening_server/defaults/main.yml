@@ -1,0 +1,199 @@
+---
+packages_remove:
+  - xinetd
+  - inetutils-inetd
+  - openbsd-inetd
+  - rsh-server
+  - rsh-redone-server
+  - telnetd
+  - tftpd-hpa
+  - atftpd
+  - nis
+  - ypserv
+  - prelink
+  - telnet
+  - rsh-client
+  - rsh-redone-client
+  - talk
+
+baseline_packages_install:
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - apt-transport-https
+  - software-properties-common
+  - jq
+  - vim-tiny
+  - htop
+  - ncdu
+  - unzip
+  - rsync
+  - git
+  - bash-completion
+  - chrony
+  - python3
+  - python3-apt
+  - needrestart
+  - auditd
+  - openssh-server
+  - acl
+
+
+sysctl_hardening_lines:
+  # ==========================================
+  # Kernel security
+  # ==========================================
+
+  # Hide kernel memory addresses from users.
+  # Helps prevent attackers from using kernel address information
+  # to exploit memory-corruption vulnerabilities.
+  - "kernel.kptr_restrict = 2"
+
+  # Restrict access to kernel logs.
+  # Prevents unprivileged users from reading potentially sensitive
+  # kernel information through dmesg.
+  - "kernel.dmesg_restrict = 1"
+
+  # Enable full Address Space Layout Randomization (ASLR).
+  # Makes memory locations less predictable, making memory-based
+  # exploitation more difficult.
+  - "kernel.randomize_va_space = 2"
+
+  # Disable Magic SysRq functionality.
+  # Prevents unauthorized use of low-level kernel commands
+  # through the SysRq interface.
+  - "kernel.sysrq = 0"
+
+  # Restrict process debugging and inspection.
+  # Makes it harder for one process to inspect another process's
+  # memory and potentially steal credentials or API tokens.
+  - "kernel.yama.ptrace_scope = 1"
+
+  # Disable unprivileged BPF usage.
+  # Reduces the kernel attack surface available to ordinary users.
+  # Privileged observability tools can still use BPF when permitted.
+  - "kernel.unprivileged_bpf_disabled = 1"
+
+
+  # ==========================================
+  # Filesystem security
+  # ==========================================
+
+  # Prevent core dumps from privileged processes.
+  # Reduces the risk of exposing credentials and sensitive
+  # process memory through crash dump files.
+  - "fs.suid_dumpable = 0"
+
+  # Protect against unsafe hard-link creation.
+  # Makes it harder for attackers to create links to files
+  # they do not own or cannot access.
+  - "fs.protected_hardlinks = 1"
+
+  # Protect against symbolic-link attacks.
+  # Prevents certain attacks involving malicious symlinks
+  # in shared, world-writable directories such as /tmp.
+  - "fs.protected_symlinks = 1"
+
+  # Protect named pipes in sticky directories.
+  # Restricts unsafe access to attacker-controlled FIFOs.
+  - "fs.protected_fifos = 2"
+
+  # Protect regular files in sticky directories.
+  # Restricts unsafe file access that could trick privileged
+  # programs into interacting with attacker-controlled files.
+  - "fs.protected_regular = 2"
+
+
+  # ==========================================
+  # IPv4 network security
+  # ==========================================
+
+  # Reject ICMP redirect messages on existing interfaces.
+  # Prevents external network messages from manipulating
+  # the server's routing decisions.
+  - "net.ipv4.conf.all.accept_redirects = 0"
+
+  # Reject ICMP redirects by default on new interfaces.
+  # Ensures newly created interfaces follow the same policy.
+  - "net.ipv4.conf.default.accept_redirects = 0"
+
+  # Prevent the server from sending ICMP redirects.
+  # Avoids unintentionally instructing other machines
+  # to change their network routes.
+  - "net.ipv4.conf.all.send_redirects = 0"
+
+  # Apply the no-redirect-sending policy to new interfaces.
+  - "net.ipv4.conf.default.send_redirects = 0"
+
+  # Reject IPv4 source-routed packets.
+  # Prevents packet senders from specifying alternative
+  # network paths to your server.
+  - "net.ipv4.conf.all.accept_source_route = 0"
+
+  # Apply source-routing protection to new interfaces.
+  - "net.ipv4.conf.default.accept_source_route = 0"
+
+  # Log suspicious packets with invalid or impossible source addresses.
+  # Improves visibility into potentially spoofed network traffic.
+  - "net.ipv4.conf.all.log_martians = 1"
+
+  # Enable suspicious-packet logging on new interfaces.
+  - "net.ipv4.conf.default.log_martians = 1"
+
+  # Ignore ICMP broadcast ping requests.
+  # Helps prevent Smurf-style ICMP amplification attacks.
+  - "net.ipv4.icmp_echo_ignore_broadcasts = 1"
+
+  # Ignore malformed or bogus ICMP error responses.
+  # Reduces the impact of invalid ICMP error messages.
+  - "net.ipv4.icmp_ignore_bogus_error_responses = 1"
+
+  # Enable TCP SYN cookies when the SYN backlog overflows.
+  # Helps protect against TCP SYN flood attacks that exhaust
+  # resources with incomplete connection handshakes.
+  - "net.ipv4.tcp_syncookies = 1"
+
+
+  # ==========================================
+  # IPv6 network security
+  # ==========================================
+
+  # Reject IPv6 ICMP redirect messages on existing interfaces.
+  # Prevents potentially malicious IPv6 routing instructions.
+  - "net.ipv6.conf.all.accept_redirects = 0"
+
+  # Apply IPv6 redirect protection to new interfaces.
+  - "net.ipv6.conf.default.accept_redirects = 0"
+
+  # Disable acceptance of IPv6 source-routing headers.
+  # Reduces exposure to unwanted IPv6 source-routing behavior.
+  - "net.ipv6.conf.all.accept_source_route = 0"
+
+  # Apply IPv6 source-routing protection to new interfaces.
+  - "net.ipv6.conf.default.accept_source_route = 0"
+
+auditd_config:
+  log_file: "/var/log/audit/audit.log"
+  log_format: "RAW"
+  flush: "INCREMENTAL_ASYNC"
+  freq: 50
+
+  max_log_file: 6
+  num_logs: 5
+  max_log_file_action: "ROTATE"
+
+  space_left: 75
+  space_left_action: "SYSLOG"
+  admin_space_left: 50
+  admin_space_left_action: "SUSPEND"
+
+  audit_immutable: false
+
+  audit_docker_rules: false
+
+faillock:
+  deny: 5
+  unlock_time: 900
+  even_deny_root: true
+  audit: true

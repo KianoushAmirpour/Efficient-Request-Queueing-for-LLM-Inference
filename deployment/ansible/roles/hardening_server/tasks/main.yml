@@ -1,0 +1,169 @@
+---
+- name: Install baseline packages
+  ansible.builtin.apt:
+    name: "{{ baseline_packages_install }}"
+    state: present
+    update_cache: true
+  tags: [hardening, packages]
+
+- name: Remove unnecessary packages
+  ansible.builtin.apt:
+    name: "{{ packages_remove }}"
+    state: absent
+    purge: true
+    autoremove: true
+    update_cache: true
+  tags: [hardening, packages]
+
+- name: Write hardened sysctl config
+  ansible.builtin.template:
+    src: sysctl-hardening.j2
+    dest: /etc/sysctl.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply sysctl configuration
+  tags: [hardening, sysctl]
+
+- name: Ensure cron service is enabled and running
+  ansible.builtin.systemd:
+    name: cron
+    enabled: true
+    state: started
+  tags: [hardening, cron]
+
+- name: Secure cron directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - /etc/cron.d
+    - /etc/cron.hourly
+    - /etc/cron.daily
+    - /etc/cron.weekly
+    - /etc/cron.monthly
+  tags: [hardening, cron, permissions]
+
+- name: Secure system-wide crontab
+  ansible.builtin.file:
+    path: /etc/crontab
+    state: file
+    owner: root
+    group: root
+    mode: "0600"
+  tags: [hardening, cron, permissions]
+
+- name: Restrict cron access to root
+  ansible.builtin.copy:
+    dest: /etc/cron.allow
+    content: "root\n"
+    owner: root
+    group: root
+    mode: "0600"
+  tags: [hardening, cron, permissions]
+
+- name: Ensure permissions for passwd, group, shadow, gshadow
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+    follow: false
+  loop:
+    - path: /etc/passwd
+      group: root
+      mode: "0644"
+    - path: /etc/group
+      group: root
+      mode: "0644"
+    - path: /etc/shadow
+      group: shadow
+      mode: "0640"
+    - path: /etc/gshadow
+      group: shadow
+      mode: "0640"
+  tags: [hardening, permissions]
+
+- name: Ensure auditd installed
+  ansible.builtin.apt:
+    name: auditd
+    state: present
+    update_cache: true
+  tags: [hardening, auditd, packages]
+
+- name: Ensure auditd is enabled and running
+  ansible.builtin.systemd:
+    name: auditd
+    enabled: true
+    state: started
+  tags: [hardening, auditd, services]
+
+- name: Remove conflicting default audit rules
+  ansible.builtin.file:
+    path: /etc/audit/rules.d/audit.rules
+    state: absent
+  notify: Reload audit rules
+  tags: [hardening, auditd, audit_rules]
+
+- name: Configure audit daemon
+  ansible.builtin.template:
+    src: auditd.conf.j2
+    dest: /etc/audit/auditd.conf
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart auditd
+  tags: [hardening, auditd, audit_config]
+
+- name: Deploy base audit rules
+  ansible.builtin.template:
+    src: 10-base.rules.j2
+    dest: /etc/audit/rules.d/10-base.rules
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Reload audit rules
+  tags: [hardening, auditd, audit_rules]
+
+- name: Deploy security audit rules
+  ansible.builtin.template:
+    src: 50-hardening.rules.j2
+    dest: /etc/audit/rules.d/50-hardening.rules
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Reload audit rules
+  tags: [hardening, auditd, audit_rules]
+
+- name: Deploy immutable audit rules
+  ansible.builtin.template:
+    src: 99-finalize.rules.j2
+    dest: /etc/audit/rules.d/99-finalize.rules
+    owner: root
+    group: root
+    mode: "0640"
+  when: auditd_config.audit_immutable | bool
+  notify: Reload audit rules
+  tags: [hardening, auditd, audit_rules]
+
+- name: Remove immutable rules when disabled
+  ansible.builtin.file:
+    path: /etc/audit/rules.d/99-finalize.rules
+    state: absent
+  when: not (auditd_config.audit_immutable | bool)
+  notify: Reload audit rules
+  tags: [hardening, auditd, audit_rules]
+
+- name: Disable core dumps via limits
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      * hard core 0
+      * soft core 0
+  tags: [hardening, core_dumps]
