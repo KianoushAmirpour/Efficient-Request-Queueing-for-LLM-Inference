@@ -15,7 +15,7 @@ services:
       - "8080:8080"
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthyd
       redis-stack:
         condition: service_healthy
     restart: unless-stopped
@@ -29,6 +29,8 @@ services:
 
   migrate:
     image: ghcr.io/kianoushamirpour/efficient-request-queueing-for-llm-inference-migrate:sha-445f7bc
+    needs: ["postgres"]
+    container_name: migrate
     profiles:
       - migration
     env_file:
@@ -37,6 +39,11 @@ services:
       GOOSE_DRIVER: postgres
       GOOSE_DBSTRING: "postgres://${MIGRATION_USER}:${MIGRATION_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=${POSTGRES_SSLMODE}"
     command: ["up"]
+    depends_on:
+      - postgres:
+          condition: service_healthy
+    networks:
+      - internal
     restart: "no"
 
 
@@ -46,8 +53,7 @@ services:
     environment:
       - REDIS_ARGS=--appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy volatile-lru
     ports:
-      - "6379:6379"
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -71,9 +77,6 @@ services:
       APP_PASSWORD: ${APP_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./pg_db/scripts:/docker-entrypoint-initdb.d
-    ports:
-      - "5432:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -96,7 +99,7 @@ services:
       - internal
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.1
     container_name: grafana
     ports:
       - "3000:3000"
