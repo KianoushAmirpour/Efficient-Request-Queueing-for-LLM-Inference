@@ -69,11 +69,12 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 	envErr := requireEnvs(
 		"POSTGRES_USER",
 		"POSTGRES_PASSWORD",
-		"REDIS_PASSWORD",
 		"GITHUB_CLIENT_ID",
 		"GITHUB_CLIENT_SECRET",
 		"JWT_ACCESS_SECRET",
 		"OPENAI_API",
+		"APP_USER",
+		"APP_PASSWORD",
 	)
 	if envErr != nil {
 		return AppConfig{}, envErr
@@ -83,8 +84,8 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 	if err != nil {
 		return AppConfig{}, err
 	}
-	pgCfg.Password = os.Getenv("POSTGRES_PASSWORD")
-	pgCfg.User = os.Getenv("POSTGRES_USER")
+	pgCfg.Password = os.Getenv("APP_PASSWORD")
+	pgCfg.User = os.Getenv("APP_USER")
 	if host := os.Getenv("POSTGRES_HOST"); host != "" {
 		pgCfg.Database.Host = host
 	}
