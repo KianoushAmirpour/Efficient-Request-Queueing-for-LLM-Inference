@@ -33,11 +33,9 @@ jobs:
 
             cd /opt/app
 
-            # Validate required deployment variables.
             : "${GHCR_USERNAME:?GHCR_USERNAME is required}"
             : "${GHCR_TOKEN:?GHCR_TOKEN is required}"
 
-            # Docker Compose command.
             dc() {
               docker compose \
                 --env-file /opt/app/.env \
@@ -45,10 +43,7 @@ jobs:
                 "$@"
             }
 
-            # Always attempt to remove registry credentials.
             trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
-
-            echo "Authenticating with GHCR..."
 
             printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
               --username "$GHCR_USERNAME" \
@@ -64,7 +59,7 @@ jobs:
 
             echo "Starting PostgreSQL and Redis..."
 
-            dc up -d --wait postgres redis-stack
+            dc up -d --wait --wait-timeout 180 postgres redis-stack
 
             echo "Running database migrations..."
 
@@ -74,7 +69,7 @@ jobs:
 
             echo "Starting application and monitoring services..."
 
-            dc up -d --no-build --wait
+            dc up -d --no-build --wait --wait-timeout 180
 
             echo "Checking deployment status..."
 
