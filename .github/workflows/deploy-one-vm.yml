@@ -25,6 +25,7 @@ jobs:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_DEPLOY_USER }}
           key: ${{ secrets.STAGING_DEPLOY_PRIVATE_KEY }}
+          port: ${{ secrets.STAGING_PORT }}
 
           envs: GHCR_USERNAME,GHCR_TOKEN
 
