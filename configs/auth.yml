@@ -1,5 +1,3 @@
-github:
-  callback_url: http://localhost:8080/api/auth/github/callback
 jwt:
   issuer: auth-api
   audience: request-api
