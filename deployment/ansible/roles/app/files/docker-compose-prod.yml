@@ -2,20 +2,21 @@ version: "3.9"
 
 services:
   app:
-    image: ghcr.io/kianoushamirpour/efficient-request-queueing-for-llm-inference:sha-8d1dbce
+    image: ghcr.io/kianoushamirpour/efficient-request-queueing-for-llm-inference:sha-3b082d2
     container_name: app
     env_file:
       - /opt/app/.env
     environment:
+      GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL}
       CFG_PATH: /app/configs
       GIN_MODE: release
       POSTGRES_HOST: postgres
       REDIS_HOST: redis-stack
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
     depends_on:
       postgres:
-        condition: service_healthyd
+        condition: service_healthy
       redis-stack:
         condition: service_healthy
     restart: unless-stopped
@@ -29,7 +30,6 @@ services:
 
   migrate:
     image: ghcr.io/kianoushamirpour/efficient-request-queueing-for-llm-inference-migrate:sha-445f7bc
-    needs: ["postgres"]
     container_name: migrate
     profiles:
       - migration
@@ -40,8 +40,8 @@ services:
       GOOSE_DBSTRING: "postgres://${MIGRATION_USER}:${MIGRATION_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=${POSTGRES_SSLMODE}"
     command: ["up"]
     depends_on:
-      - postgres:
-          condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - internal
     restart: "no"
@@ -77,6 +77,8 @@ services:
       APP_PASSWORD: ${APP_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -90,7 +92,7 @@ services:
     image: prom/prometheus:v3.13.3
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -102,7 +104,7 @@ services:
     image: grafana/grafana:13.1
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
@@ -123,7 +125,7 @@ services:
       - "-storageDataPath=/victoria-logs-data"
       - "-retentionPeriod=14d"
     ports:
-      - "9428:9428"
+      - "127.0.0.1:9428:9428"
     volumes:
       - victorialogs_data:/victoria-logs-data
     restart: unless-stopped
@@ -137,7 +139,7 @@ services:
       - "--config"
       - "/etc/vector/vector.yaml"
     volumes:
-      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - ./vector/vector.yml:/etc/vector/vector.yaml:ro
       - vector_data:/var/lib/vector
       - /var/run/docker.sock:/var/run/docker.sock:ro
 

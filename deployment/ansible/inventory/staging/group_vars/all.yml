@@ -30,6 +30,10 @@ deploy_groups:
 
 ssh_port: 2238
 
-firewall_allowed_ports: []
+firewall_allowed_ports:
+  - port: 2238
+    proto: tcp
+  - port: 8080
+    proto: tcp
 
 firewall_logging: low

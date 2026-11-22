@@ -30,7 +30,7 @@ ssh_hardening_sshd_client_alive_count_max: 2
 
 # Forwarding restrictions
 ssh_hardening_sshd_allow_agent_forwarding: "no"
-ssh_hardening_sshd_allow_tcp_forwarding: "no"
+ssh_hardening_sshd_allow_tcp_forwarding: "yes"
 ssh_hardening_sshd_allow_stream_local_forwarding: "no"
 ssh_hardening_sshd_x11_forwarding: "no"
 ssh_hardening_sshd_permit_tunnel: "no"
