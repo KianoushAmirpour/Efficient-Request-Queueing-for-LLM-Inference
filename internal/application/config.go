@@ -109,6 +109,7 @@ func loadConfigs(loader *config.Loader) (AppConfig, error) {
 	}
 	authConfig.GitHub.GitHubClientID = os.Getenv("GITHUB_CLIENT_ID")
 	authConfig.GitHub.GitHubClientSecret = os.Getenv("GITHUB_CLIENT_SECRET")
+	authConfig.GitHub.GitHubCallbackURL = os.Getenv("GitHubCallbackURL")
 	authConfig.JwtToken.JWTAccessSecret = os.Getenv("JWT_ACCESS_SECRET")
 
 	serverCfg, err := config.LoadInto[ServerConfig](loader, "server.yml")

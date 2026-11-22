@@ -7,7 +7,7 @@ import (
 type GitHubConfig struct {
 	GitHubClientID     string `yaml:"-"`
 	GitHubClientSecret string `yaml:"-"`
-	GitHubCallbackURL  string `yaml:"callback_url"`
+	GitHubCallbackURL  string `yaml:"-"`
 }
 
 type JwtTokenConfig struct {
