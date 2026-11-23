@@ -2,6 +2,44 @@
 
 A request queue for managing authenticated client access to self-hosted LLM inference. It sits between clients and an OpenAI-compatible inference server, turning expensive inference work into a controlled and observable workflow with per-user scheduling fairness.
 
+## Table of Contents
+
+- [Why fair scheduling matters for a self-hosted LLM](#why-fair-scheduling-matters-for-a-self-hosted-llm)
+- [Architecture](#architecture)
+  - [Request and execution flow](#request-and-execution-flow)
+- [Key design choices](#key-design-choices)
+  - [Rate limiting is based on token cost](#rate-limiting-is-based-on-token-cost)
+  - [Per-user queues and fair scheduling](#per-user-queues-and-fair-scheduling)
+  - [Idempotency and request coalescing](#idempotency-and-request-coalescing)
+  - [Lease-based worker ownership](#lease-based-worker-ownership)
+  - [Job recovery and state reconciliation](#job-recovery-and-state-reconciliation)
+  - [Atomic scheduler operations](#atomic-scheduler-operations)
+  - [Graceful lifecycle management](#graceful-lifecycle-management)
+- [Data ownership](#data-ownership)
+  - [Job state management](#job-state-management)
+- [Correctness and invariants](#correctness-and-invariants)
+  - [Admission](#admission)
+  - [Job state](#job-state)
+  - [Scheduling](#scheduling)
+  - [Worker execution](#worker-execution)
+  - [Recovery](#recovery)
+- [Staging infrastructure](#staging-infrastructure)
+- [CI and Deployment Workflows](#ci-and-deployment-workflows)
+  - [Continuous integration](#continuous-integration)
+  - [Docker image builds and publishing](#docker-image-builds-and-publishing)
+  - [Staging deployment](#staging-deployment)
+  - [Staging workflow](#staging-workflow)
+- [Metrics and Dashboards](#metrics-and-dashboards)
+- [API](#api)
+- [Configuration and local run](#configuration-and-local-run)
+  - [Prerequisites](#prerequisites)
+  - [How to run](#how-to-run)
+    - [Local Go execution](#local-go-execution)
+    - [Full Docker stack](#full-docker-stack)
+    - [Development commands](#development-commands)
+- [Scope](#scope)
+- [TODO](#todo)
+
 ## Why fair scheduling matters for a self-hosted LLM
 
 When an LLM is self-hosted, the scarce resource is often inference capacity, ultimately constrained by GPU resources. A naïve FIFO queue appears fair, but it is fair only to request arrival order: one user can submit many requests and occupy every worker while everyone else waits.
@@ -266,6 +304,123 @@ The complete scenario matrix, coverage levels, test-environment details, known l
 
 Note: These tests cover functional, state-transition, coordination, and concurrency behavior for the scenarios listed above. They do not measure throughput, latency under load, scalability, GPU/inference performance, production recovery time, Redis/PostgreSQL capacity, horizontal scalability, or production readiness.
 
+## Staging infrastructure
+
+The staging environment runs on an Ubuntu Server VM provisioned with Ansible. Infrastructure automation is maintained under `deployment/ansible/`.
+
+The Ansible playbook targets Ubuntu Server 22.04 or newer and applies the following roles:
+
+- `hardening_server`: basic server hardening.
+- `firewall`: firewall configuration.
+- `users`: administrative and deployment user accounts.
+- `ssh_hardening`: SSH access hardening.
+- `docker`: Docker Engine installation and configuration.
+- `app`: application stack configuration and deployment artifacts.
+
+The application role prepares `/opt/app` and deploys the production Docker Compose configuration, application environment, Prometheus configuration, Grafana data source and dashboard provisioning, and Vector logging configuration.
+
+Sensitive application configuration is maintained through Ansible Vault. The playbook renders the runtime environment file at `/opt/app/.env` with restricted file permissions. The Vault password is used during provisioning and is not passed to Docker Compose.
+
+Infrastructure provisioning is independent of application deployment.
+
+The **Provision staging (Ansible)** GitHub Actions workflow is manually triggered and performs the following steps:
+
+1. Installs Ansible and the required collections.
+2. Runs `ansible-lint`.
+3. Validates playbook syntax using the Ansible Vault password.
+4. Applies the playbook to the staging inventory.
+
+SSH credentials, host verification data, public keys, and the Ansible Vault password are supplied through GitHub Actions secrets associated with the `staging` environment.
+
+To provision staging locally:
+
+```sh
+cd deployment/ansible
+
+ansible-playbook playbooks/main.yml \
+  --vault-password-file /path/to/vault-password-file
+```
+
+Alternatively, Ansible can prompt for the Vault password:
+
+```sh
+cd deployment/ansible
+
+ansible-playbook playbooks/main.yml --ask-vault-pass
+```
+
+Keep the Vault password file private and never commit it to the repository.
+
+## CI and Deployment Workflows
+
+GitHub Actions handles application validation, Docker image production, and staging deployment through separate workflows.
+
+### Continuous integration
+
+The `ci` workflow runs on pushes to `main` and pull requests. Changes limited to `deployment/ansible/**` are excluded.
+
+The workflow performs:
+
+- Go linting with `golangci-lint`.
+- Dependency verification using `go mod tidy`.
+- Compilation of all Go packages.
+- Tests with the Go race detector and coverage reporting.
+
+### Docker image builds and publishing
+
+Docker image builds are conditional on changes to their respective inputs:
+
+| Image | Build inputs | Vulnerability scan |
+|---|---|---|
+| Application | Go source, dependencies, application configuration, and Docker build files | Trivy: HIGH and CRITICAL |
+| Migration | Migration files and migration Dockerfile inputs | Not configured |
+| PostgreSQL | Custom PostgreSQL image and initialization scripts | Not configured |
+
+All images are checked against their configured size limits.
+
+On successful pushes to `main`, the required images are published to GitHub Container Registry (GHCR). Images receive a commit-SHA tag and a `latest` tag for builds from `main`.
+
+Publishing an image does not automatically deploy it to staging.
+
+### Staging deployment
+
+The **Deploy to VM** GitHub Actions workflow is manually triggered. It connects to the staging VM over SSH and performs the deployment using the Compose configuration maintained on the VM.
+
+The deployment sequence is:
+
+1. Authenticate with GHCR.
+2. Validate the Docker Compose configuration.
+3. Pull the images referenced by the Compose configuration.
+4. Start PostgreSQL and Redis, waiting for their health checks to pass.
+5. Execute database migrations using the dedicated migration service.
+6. Start the application and monitoring services.
+7. Check the resulting Compose service status.
+
+The Compose configuration at `/opt/app/docker-compose-prod.yml` controls the image versions deployed to staging. This separates image publication from release selection and allows a specific image version to be deployed without automatically following the latest published image.
+
+### Staging workflow
+
+The intended operational sequence is:
+
+1. Run **Provision staging (Ansible)** when creating the VM or changing its infrastructure configuration.
+2. Let CI validate the application and build, scan, and publish the required Docker images.
+3. Update the image references in the staging Compose configuration when selecting a release.
+4. Run **Deploy to VM** to pull the selected images, execute migrations, and update the running services.
+
+## Metrics and Dashboards
+
+The metrics module exposes Prometheus metrics at `GET /metrics` on the root HTTP router.
+
+The implementation records:
+
+- **HTTP API traffic:** Request counts, request durations, and in-flight requests for `/api` routes. Request counts use normalized method, route, and status-class labels; duration and in-flight metrics use method and route.
+- **Admission:** Admission-decision duration and rejection counts categorized as token limit, model not allowed, rate limited, or other.
+- **Workload and job lifecycle:** Accepted jobs, succeeded/failed terminal outcomes, retries by reason, and recovery results.
+- **Scheduling and workers:** Queue wait from enqueue until successful claim; in-flight worker jobs; and per-attempt processing duration, separated by success or failure.
+- **Inference:** Time from generation start to the first non-empty output chunk (TTFT) and end-to-end generation duration.
+- **Streaming:** Time to write `chunk`, `retrying`, `completed`, and `failed` SSE events (not heartbeat comments), plus time from job creation to delivery of a terminal SSE event. The end-to-end observation is made when a stream client receives a terminal event; it is not a metric emitted for every completed job regardless of subscribers. Event types aren’t distinguishable in the metric.
+
+
 ## API
 
 | Method | Endpoint                         | Purpose                                       |
@@ -349,9 +504,7 @@ make dev_down
 The project does not implement or deploy an LLM inference engine. It treats the inference server as an external OpenAI-compatible dependency configured through a base URL.
 
 ## TODO
-
-* [ ] Add and validate Prometheus metrics.
-* [ ] Add load tests.
+* [ ] Deploy with docker swarm
 * [ ] Measure throughput, p95/p99 latency, queue behavior, duplicate execution, and recovery behavior under load.
 * [ ] Document reproducible load-test results and test environment.
 * [ ] Improve test-code organization and reduce duplicated integration/concurrency test setup.
